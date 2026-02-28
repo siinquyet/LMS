@@ -1,0 +1,32 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+
+# Coverage
+coverage/
+
+# Env
+.env.local
+.env.*.local
+
+# Deps
+node_modules/
+
+# Build
+dist/
+build/
+
+# OS
+.DS_Store
+.vscode/
+.idea/
+
+# Prisma
+prisma/migrations
+/prisma/dev.db

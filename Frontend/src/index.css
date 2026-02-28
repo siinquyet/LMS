@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import './themes/globals.css';
+
+@layer base {
+  :root {
+    --lms-primary: 40 99 235;
+    --lms-text-primary: 15 23 42;
+    --lms-text-secondary: 71 85 105;
+    --lms-bg-primary: 248 250 252;
+    --lms-bg-secondary: 255 255 255;
+    --lms-border: 226 232 240;
+    
+    font-family: Inter, system-ui, -apple-system, sans-serif;
+    line-height: 1.6;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* RESET ROOT - GIẢI PHÓNG DESKTOP */
+  html, body, #root {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: block !important;
+    overflow-x: hidden;
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased;
+  }
+}
+
+@layer components {
+  .card { 
+    @apply bg-white border border-slate-200/60 rounded-2xl p-8 shadow-sm; 
+  }
+  
+  .lms-container { 
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full; 
+  }
+}
+
