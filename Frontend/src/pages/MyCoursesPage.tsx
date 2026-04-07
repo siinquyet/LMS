@@ -54,7 +54,7 @@ const MyCoursesPage = () => {
 							Bạn chưa có khóa học nào
 						</h2>
 						<p className="text-slate-500 mb-8">
-							Hãy mua khóa học để bắt đầu học ngay
+							Mua khóa học để bắt đầu học ngay
 						</p>
 						<ActionButton>
 							<Link to="/store">Khám phá khóa học</Link>
