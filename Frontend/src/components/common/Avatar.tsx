@@ -1,40 +1,66 @@
-interface AvatarProps {
-	src?: string;
-	name: string;
-	size?: "sm" | "md" | "lg";
-	className?: string;
+import React from 'react';
+
+export interface AvatarProps {
+  src?: string;
+  alt?: string;
+  name?: string;
+  size?: 'sm' | 'md' | 'lg' | 'xl';
+  className?: string;
 }
 
-const Avatar = ({ src, name, size = "md", className = "" }: AvatarProps) => {
-	const sizeClasses = {
-		sm: "w-8 h-8 text-sm",
-		md: "w-10 h-10 text-sm",
-		lg: "w-12 h-12 text-base",
-	};
+export const Avatar: React.FC<AvatarProps> = ({
+  src,
+  alt = 'Avatar',
+  name,
+  size = 'md',
+  className = '',
+}) => {
+  const sizeStyles = {
+    sm: 'w-8 h-8 text-xs',
+    md: 'w-10 h-10 text-sm',
+    lg: 'w-14 h-14 text-base',
+    xl: 'w-20 h-20 text-xl',
+  };
 
-	const initials = name
-		.split(" ")
-		.map((n) => n[0])
-		.slice(0, 2)
-		.join("")
-		.toUpperCase();
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
 
-	return (
-		<div
-			className={`
-      relative rounded-full bg-gradient-to-r flex items-center justify-center font-semibold uppercase overflow-hidden shadow-sm border-2 border-slate-200/50
-      ${sizeClasses[size]} ${className}
-    `}
-		>
-			{src ? (
-				<img src={src} alt={name} className="w-full h-full object-cover" />
-			) : (
-				<span className="text-slate-100 font-semibold leading-none">
-					{initials}
-				</span>
-			)}
-		</div>
-	);
+  return (
+    <div
+      className={`
+        ${sizeStyles[size]}
+        border-2
+        border-[#263D5B]
+        rounded-full
+        overflow-hidden
+        bg-[#F8F6F3]
+        flex
+        items-center
+        justify-center
+        font-['Comfortaa', cursive]
+        font-semibold
+        text-[#263D5B]
+        shrink-0
+        ${className}
+      `}
+    >
+      {src ? (
+        <img
+          src={src}
+          alt={alt}
+          className="w-full h-full object-cover"
+        />
+      ) : (
+        <span>{name ? getInitials(name) : '?'}</span>
+      )}
+    </div>
+  );
 };
 
 export default Avatar;

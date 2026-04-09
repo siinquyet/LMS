@@ -1,16 +1,22 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, LogIn } from 'lucide-react';
+import { Mail, Lock, User, Eye, EyeOff, UserPlus } from 'lucide-react';
 import { Card, Button, Input } from '../components/common';
 
-export const LoginPage: React.FC = () => {
-  const [email, setEmail] = useState('user@example.com');
-  const [password, setPassword] = useState('user');
+export const RegisterPage: React.FC = () => {
+  const [name, setName] = useState('Nguyen Van A');
+  const [email, setEmail] = useState('nguyenvana@example.com');
+  const [password, setPassword] = useState('123456');
+  const [confirmPassword, setConfirmPassword] = useState('123456');
   const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Login:', { email, password });
+    if (password !== confirmPassword) {
+      alert('Mật khẩu không khớp!');
+      return;
+    }
+    console.log('Register:', { name, email, password });
   };
 
   return (
@@ -19,15 +25,23 @@ export const LoginPage: React.FC = () => {
         <Card className="p-8">
           <div className="text-center mb-8">
             <h1 className="font-['Comfortaa', cursive] text-3xl text-[#263D5B] mb-2 flex items-center justify-center gap-2">
-              <LogIn className="w-8 h-8 text-[#49B6E5]" />
-              Đăng nhập
+              <UserPlus className="w-8 h-8 text-[#49B6E5]" />
+              Đăng ký
             </h1>
             <p className="font-['Comfortaa', cursive] text-[#6B7280]">
-              Chào mừng trở lại!
+              Tạo tài khoản mới
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <Input
+              label="Họ và tên"
+              placeholder="Nhập họ và tên"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              icon={<User className="w-5 h-5" />}
+            />
+
             <Input
               label="Email"
               type="email"
@@ -55,39 +69,37 @@ export const LoginPage: React.FC = () => {
               </button>
             </div>
 
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" className="w-4 h-4" />
-                <span className="font-['Comfortaa', cursive] text-sm text-[#6B7280]">Ghi nhớ</span>
-              </label>
-              <Link to="/forgot-password" className="font-['Comfortaa', cursive] text-sm text-[#49B6E5] hover:underline">
-                Quên mật khẩu?
-              </Link>
-            </div>
+            <Input
+              label="Xác nhận mật khẩu"
+              type={showPassword ? 'text' : 'password'}
+              placeholder="Nhập lại mật khẩu"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              icon={<Lock className="w-5 h-5" />}
+            />
+
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input type="checkbox" className="w-4 h-4 mt-1" required />
+              <span className="font-['Comfortaa', cursive] text-sm text-[#6B7280]">
+                Tôi đồng ý với{' '}
+                <Link to="/terms" className="text-[#49B6E5] hover:underline">Điều khoản</Link>
+                {' '}và{' '}
+                <Link to="/privacy" className="text-[#49B6E5] hover:underline">Chính sách</Link>
+              </span>
+            </label>
 
             <Button type="submit" variant="primary" className="w-full">
-              Đăng nhập
+              Tạo tài khoản
             </Button>
           </form>
 
           <div className="mt-6 text-center">
             <p className="font-['Comfortaa', cursive] text-[#6B7280]">
-              Chưa có tài khoản?{' '}
-              <Link to="/register" className="text-[#49B6E5] hover:underline">
-                Đăng ký ngay
+              Đã có tài khoản?{' '}
+              <Link to="/login" className="text-[#49B6E5] hover:underline">
+                Đăng nhập
               </Link>
             </p>
-          </div>
-
-          <div className="mt-6 p-4 bg-[#F8F6F3] rounded-[12px] border-2 border-dashed border-[#E5E1DC]">
-            <p className="font-['Comfortaa', cursive] text-xs text-[#6B7280] text-center mb-2">
-              Tài khoản demo:
-            </p>
-            <div className="font-['Comfortaa', cursive] text-xs text-[#6B7280] space-y-1">
-              <p>👤 Học viên: user / user</p>
-              <p>👨‍🏫 Giảng viên: teacher / teacher</p>
-              <p>🛠 Admin: admin / admin</p>
-            </div>
           </div>
         </Card>
       </div>
@@ -95,4 +107,4 @@ export const LoginPage: React.FC = () => {
   );
 };
 
-export default LoginPage;
+export default RegisterPage;

@@ -1,20 +1,16 @@
-import Footer from "./Footer";
-import Header from "./Header";
+import React from 'react';
+import { Outlet } from 'react-router-dom';
+import Header from './Header';
+import Footer from './Footer';
 
-import type { ReactNode } from "react";
-
-interface AppShellProps {
-	children: ReactNode;
-}
-
-const AppShell = ({ children }: AppShellProps) => {
-	return (
-		<div className="min-h-screen flex flex-col bg-surface">
-			<Header />
-			<main className="flex-1 w-full">{children}</main>
-			<Footer />
-		</div>
-	);
+export const AppShell: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
+  return (
+    <>
+      <Header />
+      {children || <Outlet />}
+      <Footer />
+    </>
+  );
 };
 
 export default AppShell;

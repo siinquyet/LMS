@@ -1,19 +1,19 @@
+@import './themes/globals.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@import './themes/globals.css';
-
 @layer base {
   :root {
-    --lms-primary: 40 99 235;
-    --lms-text-primary: 15 23 42;
-    --lms-text-secondary: 71 85 105;
-    --lms-bg-primary: 248 250 252;
+    --lms-primary: 73 182 229;
+    --lms-text-primary: 17 24 39;
+    --lms-text-secondary: 107 114 128;
+    --lms-bg-primary: 248 246 243;
     --lms-bg-secondary: 255 255 255;
-    --lms-border: 226 232 240;
+    --lms-border: 229 225 220;
     
-    font-family: Inter, system-ui, -apple-system, sans-serif;
+    font-family: 'Comfortaa', cursive, system-ui, -apple-system, sans-serif;
     line-height: 1.6;
     font-synthesis: none;
     text-rendering: optimizeLegibility;
@@ -22,28 +22,28 @@
     -webkit-tap-highlight-color: transparent;
   }
 
-  /* RESET ROOT - GIẢI PHÓNG DESKTOP */
-  html, body, #root {
-    width: 100% !important;
-    max-width: none !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    display: block !important;
+  html, body {
+    width: 100%;
+    margin: 0;
+    padding: 0;
     overflow-x: hidden;
   }
 
   body {
-    @apply bg-slate-50 text-slate-900 antialiased;
+    background-color: var(--lms-bg-primary);
+    color: var(--lms-text-primary);
+  }
+
+  #root {
+    min-height: 100vh;
   }
 }
 
 @layer components {
-  .card { 
-    @apply bg-white border border-slate-200/60 rounded-2xl p-8 shadow-sm; 
-  }
-  
-  .lms-container { 
-    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full; 
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 }
-
