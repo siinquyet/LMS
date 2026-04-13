@@ -1,10 +1,9 @@
 import React from 'react';
 
-export interface InputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange'> {
+export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
   icon?: React.ReactNode;
-  onChange?: (value: string) => void;
 }
 
 export const Input: React.FC<InputProps> = ({
@@ -12,13 +11,8 @@ export const Input: React.FC<InputProps> = ({
   error,
   icon,
   className = '',
-  onChange,
   ...props
 }) => {
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onChange?.(e.target.value);
-  };
-
   return (
     <div className="flex flex-col gap-2">
       {label && (
@@ -56,7 +50,6 @@ export const Input: React.FC<InputProps> = ({
             ${error ? 'border-[#DC2626] focus:border-[#DC2626] focus:shadow-[3px_3px_0px_#DC2626]' : ''}
             ${className}
           `}
-          onChange={handleChange}
           {...props}
         />
       </div>

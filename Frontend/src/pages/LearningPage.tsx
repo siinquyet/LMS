@@ -3,20 +3,18 @@ import { useParams, Link } from 'react-router-dom';
 import { 
   ChevronLeft, 
   ChevronRight, 
-  Play, 
+  Play,
   FileText,
   HelpCircle,
   MessageSquare,
   Bookmark,
   Send,
-  CheckCircle,
-  XCircle,
+  Heart,
+  Reply,
   Clock,
   BookOpen,
   Menu,
-  X,
-  Heart,
-  Reply
+  X
 } from 'lucide-react';
 import { Button, Card, Avatar, Badge, Sidebar, SidebarItem } from '../components/common';
 
@@ -203,13 +201,10 @@ export const LearningPage: React.FC = () => {
       />
 
       <div className="flex-1 flex flex-col">
-        <div className="bg-[#263D5B] text-white px-4 py-3 flex items-center justify-between sticky top-0 z-10">
+        {/* Header with navigation */}
+        <div className="bg-[#263D5B] text-white px-4 py-3 flex items-center justify-between sticky top-0 z-10 gap-4">
           <div className="flex items-center gap-3">
-            <button 
-              type="button"
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className="p-2 hover:bg-white/10 rounded-[8px]"
-            >
+            <button type="button" onClick={() => setSidebarCollapsed(!sidebarCollapsed)} className="p-2 hover:bg-white/10 rounded-[8px]">
               {sidebarCollapsed ? <Menu className="w-5 h-5" /> : <X className="w-5 h-5" />}
             </button>
             <Link to="/my-courses" className="flex items-center gap-2 text-white/70 hover:text-white">
@@ -218,14 +213,19 @@ export const LearningPage: React.FC = () => {
             </Link>
           </div>
           <div className="flex items-center gap-2">
-            <span className="font-['Comfortaa', cursive] text-sm hidden sm:inline">{courseData.title}</span>
-            <span className="font-['Comfortaa', cursive]">•</span>
-            <Badge variant="primary">{currentLesson.type}</Badge>
+            <button type="button" className="p-2 hover:bg-white/10 rounded-[8px]">
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="font-['Comfortaa', cursive] text-sm">{currentLesson.title}</span>
+            <button type="button" className="p-2 hover:bg-white/10 rounded-[8px]">
+              <ChevronRight className="w-4 h-4" />
+            </button>
           </div>
         </div>
 
-        <div className="flex-1 overflow-auto flex flex-col">
-          {/* Video Always Visible */}
+        {/* Content with video always visible */}
+        <div className="flex-1 overflow-auto">
+          {/* Video - Always visible */}
           {currentLesson.type === 'video' && (
             <div className="bg-black">
               <div className="w-full aspect-video">
@@ -239,12 +239,9 @@ export const LearningPage: React.FC = () => {
             </div>
           )}
 
-          {/* Tab Navigation */}
+          {/* Tabs */}
           <div className="border-b-2 border-[#263D5B] bg-white">
             <div className="flex overflow-x-auto">
-              <button type="button" onClick={() => setActiveTab('video')} className={`px-4 py-3 font-['Comfortaa', cursive] flex items-center gap-2 whitespace-nowrap ${activeTab === 'video' ? 'bg-[#E8F6FC] text-[#49B6E5] border-b-2 border-[#49B6E5]' : 'text-[#6B7280] hover:bg-gray-50'}`}>
-                <Play className="w-4 h-4" /> Video
-              </button>
               <button type="button" onClick={() => setActiveTab('notes')} className={`px-4 py-3 font-['Comfortaa', cursive] flex items-center gap-2 whitespace-nowrap ${activeTab === 'notes' ? 'bg-[#E8F6FC] text-[#49B6E5] border-b-2 border-[#49B6E5]' : 'text-[#6B7280] hover:bg-gray-50'}`}>
                 <Bookmark className="w-4 h-4" /> Ghi chú
               </button>
@@ -258,7 +255,7 @@ export const LearningPage: React.FC = () => {
           </div>
 
           {/* Tab Content */}
-          <div className="flex-1 p-4 overflow-auto">
+          <div className="p-4">
             {activeTab === 'notes' && (
               <div className="space-y-4">
                 <div className="flex gap-2">
@@ -350,20 +347,6 @@ export const LearningPage: React.FC = () => {
               </div>
             )}
           </div>
-        </div>
-        
-        <div className="bg-white border-t-2 border-[#263D5B] px-6 py-3 flex items-center justify-between sticky bottom-0">
-          <Button variant="secondary">
-            <ChevronLeft className="w-4 h-4" />
-            Bài trước
-          </Button>
-          <Button variant="primary">
-            Hoàn thành
-          </Button>
-          <Button variant="secondary">
-            Bài tiếp
-            <ChevronRight className="w-4 h-4" />
-          </Button>
         </div>
       </div>
     </div>

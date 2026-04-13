@@ -1,22 +1,34 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, User, Eye, EyeOff, UserPlus } from 'lucide-react';
 import { Card, Button, Input } from '../components/common';
 
 export const RegisterPage: React.FC = () => {
-  const [name, setName] = useState('Nguyen Van A');
-  const [email, setEmail] = useState('nguyenvana@example.com');
-  const [password, setPassword] = useState('123456');
-  const [confirmPassword, setConfirmPassword] = useState('123456');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState('');
+  const navigate = useNavigate();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+    
     if (password !== confirmPassword) {
-      alert('Mật khẩu không khớp!');
+      setError('Mật khẩu không khớp!');
       return;
     }
+
+    if (password.length < 6) {
+      setError('Mật khẩu phải có ít nhất 6 ký tự');
+      return;
+    }
+
     console.log('Register:', { name, email, password });
+    alert('Đăng ký thành công! Vui lòng đăng nhập.');
+    navigate('/login');
   };
 
   return (
@@ -32,6 +44,12 @@ export const RegisterPage: React.FC = () => {
               Tạo tài khoản mới
             </p>
           </div>
+
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-[8px]">
+              <p className="font-['Comfortaa', cursive] text-sm text-red-600">{error}</p>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <Input

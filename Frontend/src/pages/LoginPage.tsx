@@ -1,16 +1,27 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, LogIn } from 'lucide-react';
 import { Card, Button, Input } from '../components/common';
+import { useAuth } from '../contexts/AuthContext';
 
 export const LoginPage: React.FC = () => {
-  const [email, setEmail] = useState('user@example.com');
-  const [password, setPassword] = useState('user');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState('');
+  const { login } = useAuth();
+  const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Login:', { email, password });
+    setError('');
+    
+    const success = await login(email, password);
+    if (success) {
+      navigate('/');
+    } else {
+      setError('Email hoặc mật khẩu không đúng');
+    }
   };
 
   return (
@@ -27,13 +38,19 @@ export const LoginPage: React.FC = () => {
             </p>
           </div>
 
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-[8px]">
+              <p className="font-['Comfortaa', cursive] text-sm text-red-600">{error}</p>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-6">
             <Input
               label="Email"
               type="email"
               placeholder="Nhập email của bạn"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
               icon={<Mail className="w-5 h-5" />}
             />
 
@@ -43,7 +60,7 @@ export const LoginPage: React.FC = () => {
                 type={showPassword ? 'text' : 'password'}
                 placeholder="Nhập mật khẩu"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
                 icon={<Lock className="w-5 h-5" />}
               />
               <button

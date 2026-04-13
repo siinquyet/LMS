@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { ShoppingCart, Bell, Menu, X, BookOpen, Store, MessageCircle } from 'lucide-react';
+import { ShoppingCart, Bell, Menu, X, BookOpen, Store, MessageCircle, User, LogIn } from 'lucide-react';
 import Avatar from '../common/Avatar';
+import { useAuth } from '../../contexts/AuthContext';
+import { Button } from '../common';
 
 export const Header: React.FC = () => {
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const { user } = useAuth();
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -44,17 +47,36 @@ export const Header: React.FC = () => {
 
           {/* Right Side */}
           <div className="hidden md:flex items-center gap-4">
-            <Link 
-              to="/cart" 
-              className="font-['Comfortaa', cursive] text-lg text-[#263D5B] hover:text-[#49B6E5] relative flex items-center gap-2"
-            >
+            <Link to="/cart" className="font-['Comfortaa', cursive] text-lg text-[#263D5B] hover:text-[#49B6E5] relative flex items-center gap-2">
               <ShoppingCart className="w-5 h-5" />
               Cart
             </Link>
-            <button className="text-[#263D5B] hover:text-[#49B6E5]">
-              <Bell className="w-5 h-5" />
-            </button>
-            <Avatar name="User" size="md" />
+            
+            {user ? (
+              <>
+                <button className="text-[#263D5B] hover:text-[#49B6E5]">
+                  <Bell className="w-5 h-5" />
+                </button>
+                <Link to="/profile">
+                  <Avatar name={user.ten || user.ten_dang_nhap} size="md" />
+                </Link>
+              </>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Link to="/login">
+                  <Button variant="secondary" size="sm">
+                    <LogIn className="w-4 h-4" />
+                    Đăng nhập
+                  </Button>
+                </Link>
+                <Link to="/register">
+                  <Button variant="primary" size="sm">
+                    <User className="w-4 h-4" />
+                    Đăng ký
+                  </Button>
+                </Link>
+              </div>
+            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -82,6 +104,21 @@ export const Header: React.FC = () => {
               <Link to="/cart" className={navLinkClass('/cart')} onClick={() => setMenuOpen(false)}>
                 <ShoppingCart className="w-5 h-5" /> Cart
               </Link>
+              
+              {user ? (
+                <Link to="/profile" className={navLinkClass('/profile')} onClick={() => setMenuOpen(false)}>
+                  <Avatar name={user.ten || user.ten_dang_nhap} size="sm" /> Profile
+                </Link>
+              ) : (
+                <div className="flex gap-2 mt-2">
+                  <Link to="/login" className="flex-1">
+                    <Button variant="secondary" size="sm" className="w-full">Đăng nhập</Button>
+                  </Link>
+                  <Link to="/register" className="flex-1">
+                    <Button variant="primary" size="sm" className="w-full">Đăng ký</Button>
+                  </Link>
+                </div>
+              )}
             </div>
           </nav>
         )}
