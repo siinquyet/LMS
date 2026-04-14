@@ -14,7 +14,10 @@ import {
   Clock,
   BookOpen,
   Menu,
-  X
+  X,
+  ClipboardList,
+  CheckCircle,
+  XCircle
 } from 'lucide-react';
 import { Button, Card, Avatar, Badge, Sidebar, SidebarItem } from '../components/common';
 
@@ -150,9 +153,15 @@ export const LearningPage: React.FC = () => {
   const { id } = useParams();
   const [isPlaying, setIsPlaying] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [activeTab, setActiveTab] = useState<'video' | 'notes' | 'documents' | 'discussion'>('video');
+  const [activeTab, setActiveTab] = useState<'video' | 'quiz' | 'notes' | 'documents' | 'discussion'>('video');
   const [quizAnswers, setQuizAnswers] = useState<number[]>([]);
   const [showQuizResult, setShowQuizResult] = useState(false);
+  const [quizMode, setQuizMode] = useState(false);
+
+  const quizHistory = [
+    { id: 1, date: '2024-01-15', score: 8, total: 10, time: '15 phút' },
+    { id: 2, date: '2024-01-10', score: 6, total: 10, time: '20 phút' },
+  ];
   const [newComment, setNewComment] = useState('');
   const [newNote, setNewNote] = useState('');
 
@@ -242,6 +251,14 @@ export const LearningPage: React.FC = () => {
           {/* Tabs */}
           <div className="border-b-2 border-[#263D5B] bg-white">
             <div className="flex overflow-x-auto">
+              {currentLesson.type === 'video' && (
+                <button type="button" onClick={() => setActiveTab('video')} className={`px-4 py-3 font-['Comfortaa', cursive] flex items-center gap-2 whitespace-nowrap ${activeTab === 'video' ? 'bg-[#E8F6FC] text-[#49B6E5] border-b-2 border-[#49B6E5]' : 'text-[#6B7280] hover:bg-gray-50'}`}>
+                  <Play className="w-4 h-4" /> Video
+                </button>
+              )}
+              <button type="button" onClick={() => setActiveTab('quiz')} className={`px-4 py-3 font-['Comfortaa', cursive] flex items-center gap-2 whitespace-nowrap ${activeTab === 'quiz' ? 'bg-[#E8F6FC] text-[#49B6E5] border-b-2 border-[#49B6E5]' : 'text-[#6B7280] hover:bg-gray-50'}`}>
+                <ClipboardList className="w-4 h-4" /> Bài tập
+              </button>
               <button type="button" onClick={() => setActiveTab('notes')} className={`px-4 py-3 font-['Comfortaa', cursive] flex items-center gap-2 whitespace-nowrap ${activeTab === 'notes' ? 'bg-[#E8F6FC] text-[#49B6E5] border-b-2 border-[#49B6E5]' : 'text-[#6B7280] hover:bg-gray-50'}`}>
                 <Bookmark className="w-4 h-4" /> Ghi chú
               </button>
@@ -256,6 +273,121 @@ export const LearningPage: React.FC = () => {
 
           {/* Tab Content */}
           <div className="p-4">
+            {activeTab === 'quiz' && (
+              <div className="space-y-4">
+                {/* Available Quiz */}
+                {currentLesson.quiz ? (
+                  <Card className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 bg-[#E8F6FC] rounded-full flex items-center justify-center">
+                          <ClipboardList className="w-6 h-6 text-[#49B6E5]" />
+                        </div>
+                        <div>
+                          <h3 className="font-['Comfortaa', cursive] text-lg text-[#263D5B]">Bài tập Quiz</h3>
+                          <p className="font-['Comfortaa', cursive] text-sm text-[#6B7280]">{currentLesson.quiz.questions.length} câu hỏi</p>
+                        </div>
+                      </div>
+                      <Button variant="primary" onClick={() => setQuizMode(true)}>
+                        Làm bài
+                      </Button>
+                    </div>
+                  </Card>
+                ) : (
+                  <div className="text-center py-8 bg-white rounded-[12px] border-2 border-[#263D5B]">
+                    <ClipboardList className="w-12 h-12 text-[#6B7280] mx-auto mb-4" />
+                    <p className="font-['Comfortaa', cursive] text-[#6B7280]">Bài học này chưa có bài tập</p>
+                  </div>
+                )}
+
+                {/* Quiz History */}
+                <div className="mt-6">
+                  <h3 className="font-['Comfortaa', cursive] text-lg text-[#263D5B] mb-4 flex items-center gap-2">
+                    <Clock className="w-5 h-5" /> Lịch sử làm bài
+                  </h3>
+                  {quizHistory.length === 0 ? (
+                    <p className="font-['Comfortaa', cursive] text-[#6B7280] text-center py-4">Chưa có lịch sử làm bài</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {quizHistory.map(h => (
+                        <div key={h.id} className="flex items-center justify-between p-4 bg-white rounded-[12px] border-2 border-[#263D5B]">
+                          <div>
+                            <p className="font-['Comfortaa', cursive] text-[#263D5B]">{h.date}</p>
+                            <p className="font-['Comfortaa', cursive] text-sm text-[#6B7280]">Thời gian: {h.time}</p>
+                          </div>
+                          <div className="text-right">
+                            <span className={`font-['Comfortaa', cursive] text-lg font-bold ${h.score >= 7 ? 'text-green-600' : 'text-red-500'}`}>
+                              {h.score}/{h.total} điểm
+                            </span>
+                            <p className="font-['Comfortaa', cursive] text-xs text-[#6B7280]">
+                              {Math.round(h.score / h.total * 100)}%
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Quiz Mode - Full Screen */}
+            {quizMode && currentLesson.quiz && (
+              <div className="fixed inset-0 bg-white z-50 overflow-auto">
+                <div className="max-w-3xl mx-auto p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="font-['Comfortaa', cursive] text-2xl text-[#263D5B]">{currentLesson.title}</h2>
+                    <button type="button" onClick={() => setQuizMode(false)} className="p-2 hover:bg-gray-100 rounded-[8px]">
+                      <X className="w-6 h-6 text-[#263D5B]" />
+                    </button>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    {currentLesson.quiz.questions.map((q, idx) => (
+                      <div key={q.id} className="border-2 border-[#263D5B] rounded-[12px] p-4">
+                        <p className="font-['Comfortaa', cursive] text-lg text-[#263D5B] mb-3">{idx + 1}. {q.question}</p>
+                        <div className="space-y-2">
+                          {q.options.map((option, optIdx) => {
+                            const isSelected = quizAnswers[idx] === optIdx;
+                            const isCorrect = q.correct === optIdx;
+                            let btnClass = 'bg-white border-[#E5E1DC] text-[#6B7280] hover:border-[#263D5B]';
+                            if (showQuizResult) {
+                              if (isCorrect) btnClass = 'bg-green-50 border-green-500 text-green-700';
+                              else if (isSelected) btnClass = 'bg-red-50 border-red-500 text-red-700';
+                            } else if (isSelected) {
+                              btnClass = 'bg-[#E8F6FC] border-[#49B6E5] text-[#263D5B]';
+                            }
+                            return (
+                              <button type="button" key={optIdx} onClick={() => { if (!showQuizResult) { const newAnswers = [...quizAnswers]; newAnswers[idx] = optIdx; setQuizAnswers(newAnswers); } }} className={`w-full p-3 rounded-[8px] text-left font-['Comfortaa', cursive] border-2 ${btnClass}`} disabled={showQuizResult}>
+                                <span className="mr-2">{String.fromCharCode(65 + optIdx)}.</span>
+                                {option}
+                                {showQuizResult && isCorrect && <CheckCircle className="w-5 h-5 inline ml-2 text-green-500" />}
+                                {showQuizResult && isSelected && !isCorrect && <XCircle className="w-5 h-5 inline ml-2 text-red-500" />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  <div className="mt-6 flex items-center gap-4">
+                    {!showQuizResult ? (
+                      <Button variant="primary" onClick={handleQuizSubmit} disabled={quizAnswers.length !== currentLesson.quiz.questions.length}>
+                        Nộp bài
+                      </Button>
+                    ) : (
+                      <div className="flex items-center gap-4">
+                        <span className="font-['Comfortaa', cursive] text-green-600 font-bold">✓ Đã nộp</span>
+                        <button type="button" onClick={() => { setShowQuizResult(false); setQuizAnswers([]); }} className="font-['Comfortaa', cursive] text-sm text-[#49B6E5] underline">Làm lại</button>
+                        <Button variant="secondary" onClick={() => setQuizMode(false)}>Thoát</Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {activeTab === 'notes' && (
               <div className="space-y-4">
                 <div className="flex gap-2">
