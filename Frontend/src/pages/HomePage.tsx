@@ -39,8 +39,8 @@ const reviews = [
 const benefits = [
   { icon: Zap, title: 'Học nhanh', desc: 'Nội dung ngắn gọn, dễ hiểu' },
   { icon: Clock, title: 'Mọi lúc', desc: 'Truy cập không giới hạn 24/7' },
-  { icon: BadgeCheck, title: 'Chứng chỉ', desc: 'Nhận cert khi hoàn thành' },
-  { icon: PlayCircle, title: 'Demo miễn phí', desc: 'Trải nghiệm trước khi mua' },
+  { icon: BadgeCheck, title: 'Chứng nhận', desc: 'Nhận chứng chỉ khi hoàn thành' },
+  { icon: PlayCircle, title: 'Dùng thử', desc: 'Trải nghiệm miễn phí 7 ngày' },
 ];
 
 const stats = [
@@ -58,11 +58,12 @@ const categories = [
 ];
 
 export const HomePage: React.FC = () => {
-  const [registerForm, setRegisterForm] = useState({ email: '', password: '' });
+  const [registerEmail, setRegisterEmail] = useState('');
+  const [registerPassword, setRegisterPassword] = useState('');
 
   const handleRegister = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Register:', registerForm);
+    console.log('Register:', { email: registerEmail, password: registerPassword });
   };
 
   return (
@@ -80,17 +81,15 @@ export const HomePage: React.FC = () => {
           <div className="text-center mb-10">
             <div className="inline-flex items-center gap-2 bg-white/10 px-4 py-2 rounded-full mb-6">
               <Sparkles className="w-4 h-4 text-[#49B6E5]" />
-              <span className="font-['Comfortaa', cursive] text-sm text-white/90 flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-[#49B6E5]" />
-                Học theo phong cách vẽ tay
+              <span className="font-['Comfortaa', cursive] text-sm text-white/90">
+                Nền tảng giáo dục trực tuyến uy tín
               </span>
             </div>
             <h1 className="font-['Comfortaa', cursive] text-4xl md:text-5xl lg:text-6xl mb-4 leading-tight">
-              Kiến thức dễ như{' '}
-              <span className="text-[#49B6E5]">vẽ tranh</span>
+              Nền tảng học tập trực tuyến hàng đầu
             </h1>
             <p className="font-['Comfortaa', cursive] text-lg md:text-xl text-white/80 max-w-2xl mx-auto mb-8">
-              Nền tảng học trực tuyến với giao diện thân thiện, giúp bạn tiếp cận kiến thức một cách vui vẻ và hiệu quả
+              Trao cơ hội tiếp cận kiến thức chất lượng cao cho mọi người, mọi nơi
             </p>
           </div>
 
@@ -169,9 +168,9 @@ export const HomePage: React.FC = () => {
             <div>
               <h2 className="font-['Comfortaa', cursive] text-3xl text-[#263D5B] flex items-center gap-2">
                 <GraduationCap className="w-8 h-8 text-[#49B6E5]" />
-                Khóa học Demo
+                Khóa học nổi bật
               </h2>
-              <p className="font-['Comfortaa', cursive] text-[#6B7280] mt-1">Xem trước nội dung miễn phí</p>
+              <p className="font-['Comfortaa', cursive] text-[#6B7280] mt-1">Những khóa học được yêu thích nhất</p>
             </div>
             <Link to="/store" className="font-['Comfortaa', cursive] text-[#49B6E5] flex items-center gap-2 hover:gap-3 transition-all">
               Xem tất cả <ArrowRight className="w-4 h-4" />
@@ -246,9 +245,9 @@ export const HomePage: React.FC = () => {
           <div className="text-center mb-10">
             <h2 className="font-['Comfortaa', cursive] text-3xl text-[#263D5B] mb-2 flex items-center justify-center gap-2">
               <MessageSquare className="w-8 h-8 text-[#49B6E5]" />
-              Học viên nói gì?
+              Đánh giá từ học viên
             </h2>
-            <p className="font-['Comfortaa', cursive] text-[#6B7280]">Những đánh giá chân thực từ cộng đồng</p>
+            <p className="font-['Comfortaa', cursive] text-[#6B7280]">Hơn 10,000+ học viên đã tin tưởng và lựa chọn</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -294,11 +293,10 @@ export const HomePage: React.FC = () => {
             <div className="flex-1 text-center lg:text-left">
               <h2 className="font-['Comfortaa', cursive] text-3xl mb-4 flex items-center justify-center lg:justify-start gap-2">
                 <Rocket className="w-8 h-8 text-[#49B6E5]" />
-                Sẵn sàng để bắt đầu?
+                Bắt đầu hành trình học tập
               </h2>
               <p className="font-['Comfortaa', cursive] text-white/80 mb-6 max-w-lg">
-                Tham gia cộng đồng 10,000+ học viên LMS Doodle ngay hôm nay. 
-                Đăng ký ngay để nhận <span className="text-[#49B6E5] font-semibold">7 ngày free trial</span> và khám phá tất cả khóa học!
+                Tham gia cộng đồng hơn 10,000 học viên. Đăng ký ngay hôm nay để nhận <span className="text-[#49B6E5] font-semibold">7 ngày dùng thử miễn phí</span> và khám phá kho tài liệu học tập chất lượng cao.
               </p>
               <div className="flex flex-wrap justify-center lg:justify-start gap-4">
                 <div className="flex items-center gap-2">
@@ -307,7 +305,7 @@ export const HomePage: React.FC = () => {
                 </div>
                   <div className="flex items-center gap-2">
                   <BadgeCheck className="w-5 h-5 text-[#16A34A]" />
-                  <span className="font-['Comfortaa', cursive] text-sm text-white/80">Chứng chỉ miễn phí</span>
+                  <span className="font-['Comfortaa', cursive] text-sm text-white/80">Chứng nhận hoàn thành</span>
                 </div>
               </div>
             </div>
@@ -324,14 +322,14 @@ export const HomePage: React.FC = () => {
                   <Input
                     type="email"
                     placeholder="Email của bạn"
-                    value={registerForm.email}
-                    onChange={(val) => setRegisterForm({ ...registerForm, email: val })}
+                    value={registerEmail}
+                    onChange={(e) => setRegisterEmail(e.target.value)}
                   />
                   <Input
                     type="password"
                     placeholder="Mật khẩu"
-                    value={registerForm.password}
-                    onChange={(val) => setRegisterForm({ ...registerForm, password: val })}
+                    value={registerPassword}
+                    onChange={(e) => setRegisterPassword(e.target.value)}
                   />
                   <Button type="submit" variant="primary" size="lg" className="w-full">
                     <Zap className="w-5 h-5" />

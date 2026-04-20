@@ -1,6 +1,6 @@
-import React from 'react';
+import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 
 export interface SidebarItem {
   id: string;
@@ -26,15 +26,52 @@ export const Sidebar: React.FC<SidebarProps> = ({
   className = '',
 }) => {
   const location = useLocation();
+  const [expandedChapters, setExpandedChapters] = useState<Set<string>>(new Set());
 
   const isActive = (href?: string) => href && location.pathname === href;
+
+  const toggleChapter = (chapterId: string) => {
+    setExpandedChapters(prev => {
+      const next = new Set(prev);
+      if (next.has(chapterId)) {
+        next.delete(chapterId);
+      } else {
+        next.add(chapterId);
+      }
+      return next;
+    });
+  };
+
+  const isChapterExpanded = (chapterId: string) => expandedChapters.has(chapterId);
 
   const renderItems = (items: SidebarItem[], depth = 0) => {
     return items.map((item) => {
       const active = isActive(item.href);
+      const hasChildren = item.children && item.children.length > 0;
+      const isExpanded = hasChildren && isChapterExpanded(item.id);
+
       return (
         <div key={item.id}>
-          {item.href ? (
+          {hasChildren ? (
+            <button
+              type="button"
+              onClick={() => toggleChapter(item.id)}
+              className={`
+                flex items-center gap-3 px-4 py-3 w-full
+                font-['Comfortaa', cursive] text-base
+                text-[#263D5B]
+                border-l-4 border-transparent
+                hover:bg-[#F8F6F3]
+                ${depth > 0 ? 'ml-4' : ''}
+              `}
+            >
+              {item.icon && <span className="w-5 flex-shrink-0">{item.icon}</span>}
+              {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
+              {!collapsed && (
+                <ChevronDown className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+              )}
+            </button>
+          ) : item.href ? (
             <Link
               to={item.href}
               className={`
@@ -58,6 +95,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </Link>
           ) : (
             <button
+              type="button"
               onClick={item.onClick}
               className={`
                 flex items-center gap-3 px-4 py-3 w-full
@@ -77,7 +115,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
               )}
             </button>
           )}
-          {item.children && !collapsed && renderItems(item.children, depth + 1)}
+          {item.children && !collapsed && isExpanded && (
+            <div className="overflow-hidden">
+              {renderItems(item.children, depth + 1)}
+            </div>
+          )}
         </div>
       );
     });
@@ -86,18 +128,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <aside className={`
       bg-white border-r-2 border-[#263D5B]
-      flex flex-col
+      flex flex-col h-full
       transition-all duration-300
       ${collapsed ? 'w-16' : 'w-64'}
       ${className}
     `}>
-      <div className="flex-1 py-4 overflow-y-auto">
+      <div className="flex-1 py-4 overflow-y-auto min-h-0">
         {renderItems(items)}
       </div>
       {onToggle && (
         <button
+          type="button"
           onClick={onToggle}
-          className="p-4 border-t-2 border-dashed border-[#E5E1DC] flex justify-center"
+          className="p-4 border-t-2 border-dashed border-[#E5E1DC] flex justify-center shrink-0"
         >
           {collapsed 
             ? <ChevronRight className="w-5 h-5 text-[#263D5B]" />

@@ -18,7 +18,20 @@ export const LoginPage: React.FC = () => {
     
     const success = await login(email, password);
     if (success) {
-      navigate('/');
+      // Get user from localStorage to determine redirect
+      const storedUser = localStorage.getItem('lms_auth_user');
+      if (storedUser) {
+        const user = JSON.parse(storedUser);
+        if (user.vai_tro === 'giang_vien') {
+          navigate('/teacher');
+        } else if (user.vai_tro === 'admin') {
+          navigate('/admin');
+        } else {
+          navigate('/');
+        }
+      } else {
+        navigate('/');
+      }
     } else {
       setError('Email hoặc mật khẩu không đúng');
     }
@@ -35,6 +48,9 @@ export const LoginPage: React.FC = () => {
             </h1>
             <p className="font-['Comfortaa', cursive] text-[#6B7280]">
               Chào mừng trở lại!
+            </p>
+            <p className="font-['Comfortaa', cursive] text-xs text-red-500 mt-2">
+              Test: admin/admin | teacher/teacher | user/user
             </p>
           </div>
 

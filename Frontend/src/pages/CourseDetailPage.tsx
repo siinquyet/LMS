@@ -13,7 +13,13 @@ import {
   FileText,
   Video,
   ArrowLeft,
-  ChevronDown
+  ChevronDown,
+  MessageSquare,
+  Send,
+  Heart,
+  Reply,
+  Flag,
+  ArrowUpDown
 } from 'lucide-react';
 import { Button, Card, Avatar, Badge } from '../components/common';
 import { useCart } from '../contexts/CartContext';
@@ -87,7 +93,12 @@ const courseData = {
       ]
     }
   ],
-  instructorBio: 'Giảng viên Nguyễn Văn A với hơn 10 năm kinh nghiệm trong lĩnh vực phát triển web. Đã làm việc tại nhiều công ty công nghệ hàng đầu và có kinh nghiệm giảng dạy cho hàng nghìn học viên.'
+  instructorBio: 'Giảng viên Nguyễn Văn A với hơn 10 năm kinh nghiệm trong lĩnh vực phát triển web. Đã làm việc tại nhiều công ty công nghệ hàng đầu và có kinh nghiệm giảng dạy cho hàng nghìn học viên.',
+  ratings: [
+    { id: 1, user: 'Nguyen Van A', avatar: 'NVA', rating: 5, comment: 'Khóa học rất hay, giảng viên dạy rất dễ hiểu!', time: '2 ngày trước', likes: 12 },
+    { id: 2, user: 'Tran Thi B', avatar: 'TTB', rating: 4, comment: 'Nội dung chi tiết, có thực hành tốt.', time: '1 tuần trước', likes: 8, replies: [{ id: 3, user: 'Nguyen Van A', avatar: 'NVA', comment: 'Cảm ơn bạn đã feedback!', time: '6 ngày trước' }] },
+    { id: 3, user: 'Le Van C', avatar: 'LVC', rating: 5, comment: 'Khóa học tốt nhất mà tôi từng học!', time: '2 tuần trước', likes: 15 }
+  ] as { id: number; user: string; avatar: string; rating: number; comment: string; time: string; likes: number; replies?: { id: number; user: string; avatar: string; comment: string; time: string }[] }[]
 };
 
 export const CourseDetailPage: React.FC = () => {
@@ -95,6 +106,15 @@ export const CourseDetailPage: React.FC = () => {
   const { addItem } = useCart();
   const [openChapters, setOpenChapters] = useState<number[]>([]);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [userRating, setUserRating] = useState(0);
+  const [ratingComment, setRatingComment] = useState('');
+
+  const handleSubmitRating = () => {
+    if (userRating > 0 && ratingComment.trim()) {
+      setUserRating(0);
+      setRatingComment('');
+    }
+  };
 
   const toggleChapter = (chapterId: number) => {
     setOpenChapters(prev => 
@@ -300,7 +320,7 @@ export const CourseDetailPage: React.FC = () => {
             </Card>
             
             {/* Instructor */}
-            <Card>
+            <Card className="mb-8">
               <h2 className="font-['Comfortaa', cursive] text-xl text-[#263D5B] mb-4 flex items-center gap-2">
                 <Users className="w-6 h-6 text-[#49B6E5]" />
                 Giảng viên
@@ -318,6 +338,120 @@ export const CourseDetailPage: React.FC = () => {
                     {courseData.instructorBio}
                   </p>
                 </div>
+              </div>
+            </Card>
+
+            {/* Ratings */}
+            <Card className="mb-8">
+              <h2 className="font-['Comfortaa', cursive] text-xl text-[#263D5B] mb-4 flex items-center gap-2">
+                <Star className="w-6 h-6 text-[#D97706]" />
+                Đánh giá ({courseData.ratings.length})
+              </h2>
+              
+              <div className="mb-6 p-4 bg-[#F8F6F3] rounded-[12px] border-2 border-[#263D5B]">
+                <div className="flex items-center gap-6">
+                  <div className="text-center shrink-0">
+                    <p className="font-['Comfortaa', cursive] text-4xl font-bold text-[#263D5B]">{courseData.rating}</p>
+                    <div className="flex gap-0.5 mt-1 justify-center">
+                      {[1, 2, 3, 4, 5].map(star => (
+                        <Star key={star} className={`w-4 h-4 ${star <= courseData.rating ? 'text-[#D97706] fill-[#D97706]' : 'text-[#E5E1DC]'}`} />
+                      ))}
+                    </div>
+                    <p className="font-['Comfortaa', cursive] text-xs text-[#6B7280] mt-1">{courseData.students} đánh giá</p>
+                  </div>
+                  <div className="flex-1 space-y-1">
+                    {[5, 4, 3, 2, 1].map(star => {
+                      const pct = star === 5 ? 70 : star === 4 ? 20 : star === 3 ? 7 : star === 2 ? 2 : 1;
+                      return (
+                        <div key={star} className="flex items-center gap-2">
+                          <span className="font-['Comfortaa', cursive] text-xs text-[#6B7280] w-3">{star}</span>
+                          <Star className="w-3 h-3 text-[#D97706] fill-[#D97706]" />
+                          <div className="flex-1 h-2 bg-[#E5E1DC] rounded-full overflow-hidden">
+                            <div className="h-full bg-[#D97706]" style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className="font-['Comfortaa', cursive] text-xs text-[#6B7280] w-8">{pct}%</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 bg-[#F8F6F3] rounded-[12px] border-2 border-[#263D5B]">
+                <p className="font-['Comfortaa', cursive] text-sm text-[#263D5B] mb-2">Chọn số sao:</p>
+                <div className="flex gap-2 mb-4">
+                  {[1, 2, 3, 4, 5].map(star => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setUserRating(star)}
+                      className="p-1 hover:scale-110 transition-transform"
+                    >
+                      <Star className={`w-8 h-8 ${star <= userRating ? 'text-[#D97706] fill-[#D97706]' : 'text-[#E5E1DC]'}`} />
+                    </button>
+                  ))}
+                </div>
+                <textarea
+                  value={ratingComment}
+                  onChange={(e) => setRatingComment(e.target.value)}
+                  placeholder="Viết đánh giá của bạn..."
+                  className="w-full p-3 border-2 border-[#263D5B] rounded-[8px] font-['Comfortaa', cursive] text-[#263D5B] resize-none mb-3"
+                  rows={3}
+                />
+                <Button variant="primary" onClick={handleSubmitRating} disabled={userRating === 0 || !ratingComment.trim()} className="w-full">
+                  Gửi đánh giá
+                </Button>
+              </div>
+
+              <div className="space-y-4">
+                {courseData.ratings.map(rating => (
+                  <div key={rating.id} className="border-b border-[#E5E1DC] pb-4 last:border-0">
+                    <div className="flex items-start gap-3">
+                      <Avatar name={rating.avatar} size="md" />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-['Comfortaa', cursive] font-semibold text-[#263D5B]">{rating.user}</span>
+                          <div className="flex gap-0.5">
+                            {[1, 2, 3, 4, 5].map(star => (
+                              <Star key={star} className={`w-3 h-3 ${star <= rating.rating ? 'text-[#D97706] fill-[#D97706]' : 'text-[#E5E1DC]'}`} />
+                            ))}
+                          </div>
+                          <span className="font-['Comfortaa', cursive] text-xs text-[#6B7280]">{rating.time}</span>
+                        </div>
+                        <p className="font-['Comfortaa', cursive] text-sm text-[#263D5B] mb-2">{rating.comment}</p>
+                        <div className="flex items-center gap-4">
+                          <button type="button" className="flex items-center gap-1 text-[#6B7280] hover:text-red-500">
+                            <Heart className="w-4 h-4" />
+                            <span className="font-['Comfortaa', cursive] text-xs">{rating.likes}</span>
+                          </button>
+                          <button type="button" className="flex items-center gap-1 text-[#6B7280] hover:text-[#49B6E5]">
+                            <Reply className="w-4 h-4" />
+                            <span className="font-['Comfortaa', cursive] text-xs">Trả lời</span>
+                          </button>
+                          <button type="button" className="flex items-center gap-1 text-[#6B7280] hover:text-orange-500">
+                            <Flag className="w-4 h-4" />
+                          </button>
+                        </div>
+                        {rating.replies && rating.replies.length > 0 && (
+                          <div className="ml-8 mt-3 space-y-2">
+                            {rating.replies.map(reply => (
+                              <div key={reply.id} className="flex items-start gap-2 p-2 bg-gray-50 rounded-[8px] border-l-2 border-[#263D5B]">
+                                <Avatar name={reply.avatar} size="sm" />
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-['Comfortaa', cursive] font-semibold text-sm text-[#263D5B]">{reply.user}</span>
+                                    <span className="font-['Comfortaa', cursive] text-xs text-[#6B7280]">{reply.time}</span>
+                                  </div>
+                                  <p className="font-['Comfortaa', cursive] text-sm text-[#263D5B]">{reply.comment}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </Card>
           </div>

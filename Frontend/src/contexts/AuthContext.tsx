@@ -16,11 +16,16 @@ export interface User {
 	anh_dai_dien?: string;
 }
 
+export type UserRole = 'hoc_vien' | 'giang_vien' | 'admin';
+
 interface AuthContextType {
 	user: User | null;
 	login: (username: string, password: string) => Promise<boolean>;
 	logout: () => void;
 	isLoading: boolean;
+	isStudent: boolean;
+	isTeacher: boolean;
+	isAdmin: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -80,8 +85,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 		username: string,
 		password: string,
 	): Promise<boolean> => {
-		await new Promise((resolve) => setTimeout(resolve, 1000));
-
 		const foundUser = MOCK_USERS.find(
 			(u) =>
 				(u.ten_dang_nhap === username || u.email === username) &&
@@ -103,8 +106,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 		localStorage.removeItem(STORAGE_KEY);
 	};
 
+	const isStudent = user?.vai_tro === 'hoc_vien';
+	const isTeacher = user?.vai_tro === 'giang_vien';
+	const isAdmin = user?.vai_tro === 'admin';
+
 	return (
-		<AuthContext.Provider value={{ user, login, logout, isLoading }}>
+		<AuthContext.Provider value={{ user, login, logout, isLoading, isStudent, isTeacher, isAdmin }}>
 			{children}
 		</AuthContext.Provider>
 	);

@@ -17,7 +17,10 @@ import {
   X,
   ClipboardList,
   CheckCircle,
-  XCircle
+  XCircle,
+  Flag,
+  ArrowUpDown,
+  HeartOff
 } from 'lucide-react';
 import { Button, Card, Avatar, Badge, Sidebar, SidebarItem } from '../components/common';
 
@@ -153,10 +156,16 @@ export const LearningPage: React.FC = () => {
   const { id } = useParams();
   const [isPlaying, setIsPlaying] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [activeTab, setActiveTab] = useState<'video' | 'quiz' | 'notes' | 'documents' | 'discussion'>('video');
+  const [activeTab, setActiveTab] = useState<'quiz' | 'notes' | 'documents' | 'discussion'>('discussion');
   const [quizAnswers, setQuizAnswers] = useState<number[]>([]);
   const [showQuizResult, setShowQuizResult] = useState(false);
   const [quizMode, setQuizMode] = useState(false);
+  const [quizScore, setQuizScore] = useState<{ correct: number; total: number } | null>(null);
+  const [quizReviewMode, setQuizReviewMode] = useState(false);
+  const [reportModal, setReportModal] = useState<{ open: boolean; userId?: number; commentId?: number }>({ open: false });
+  const [reportReason, setReportReason] = useState('');
+  const [reportOther, setReportOther] = useState(false);
+  const [sortComment, setSortComment] = useState<'newest' | 'oldest' | 'popular'>('newest');
 
   const quizHistory = [
     { id: 1, date: '2024-01-15', score: 8, total: 10, time: '15 phút' },
@@ -166,6 +175,12 @@ export const LearningPage: React.FC = () => {
   const [newNote, setNewNote] = useState('');
 
   const currentLesson = courseData.currentLesson;
+
+  const sortedComments = [...currentLesson.comments].sort((a, b) => {
+    if (sortComment === 'newest') return b.id - a.id;
+    if (sortComment === 'oldest') return a.id - b.id;
+    return 0; // popular - giữ nguyên thứ tự
+  });
 
   const buildSidebarItems = (): SidebarItem[] => {
     return courseData.chapters.map(chapter => ({
@@ -185,7 +200,23 @@ export const LearningPage: React.FC = () => {
   };
 
   const handleQuizSubmit = () => {
+    const questions = currentLesson.quiz?.questions || [];
+    const correct = quizAnswers.filter((ans, idx) => ans === questions[idx].correct).length;
+    setQuizScore({ correct, total: questions.length });
     setShowQuizResult(true);
+  };
+
+  const handleStartQuiz = () => {
+    setQuizMode(true);
+    setShowQuizResult(false);
+    setQuizScore(null);
+    setQuizAnswers([]);
+    setQuizReviewMode(false);
+  };
+
+  const handleReviewWrong = () => {
+    setQuizReviewMode(true);
+    setQuizMode(true);
   };
 
   const handleAddComment = () => {
@@ -206,12 +237,12 @@ export const LearningPage: React.FC = () => {
         items={buildSidebarItems()} 
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
-        className="h-screen sticky top-0"
+        className="h-auto overflow-y-auto flex-shrink-0"
       />
 
       <div className="flex-1 flex flex-col">
         {/* Header with navigation */}
-        <div className="bg-[#263D5B] text-white px-4 py-3 flex items-center justify-between sticky top-0 z-10 gap-4">
+        <div className="bg-[#263D5B] text-white px-4 py-3 flex items-center justify-between shrink-0 z-10 gap-4">
           <div className="flex items-center gap-3">
             <button type="button" onClick={() => setSidebarCollapsed(!sidebarCollapsed)} className="p-2 hover:bg-white/10 rounded-[8px]">
               {sidebarCollapsed ? <Menu className="w-5 h-5" /> : <X className="w-5 h-5" />}
@@ -232,9 +263,8 @@ export const LearningPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Content with video always visible */}
-        <div className="flex-1 overflow-auto">
-          {/* Video - Always visible */}
+        {/* Video section - fixed */}
+        <div className="shrink-0">
           {currentLesson.type === 'video' && (
             <div className="bg-black">
               <div className="w-full aspect-video">
@@ -248,14 +278,9 @@ export const LearningPage: React.FC = () => {
             </div>
           )}
 
-          {/* Tabs */}
-          <div className="border-b-2 border-[#263D5B] bg-white">
+          {/* Tabs - not scroll away */}
+          <div className="border-b-2 border-[#263D5B] bg-white shrink-0">
             <div className="flex overflow-x-auto">
-              {currentLesson.type === 'video' && (
-                <button type="button" onClick={() => setActiveTab('video')} className={`px-4 py-3 font-['Comfortaa', cursive] flex items-center gap-2 whitespace-nowrap ${activeTab === 'video' ? 'bg-[#E8F6FC] text-[#49B6E5] border-b-2 border-[#49B6E5]' : 'text-[#6B7280] hover:bg-gray-50'}`}>
-                  <Play className="w-4 h-4" /> Video
-                </button>
-              )}
               <button type="button" onClick={() => setActiveTab('quiz')} className={`px-4 py-3 font-['Comfortaa', cursive] flex items-center gap-2 whitespace-nowrap ${activeTab === 'quiz' ? 'bg-[#E8F6FC] text-[#49B6E5] border-b-2 border-[#49B6E5]' : 'text-[#6B7280] hover:bg-gray-50'}`}>
                 <ClipboardList className="w-4 h-4" /> Bài tập
               </button>
@@ -271,8 +296,8 @@ export const LearningPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Tab Content */}
-          <div className="p-4">
+          {/* Tab Content - scrollable */}
+          <div className="flex-1 overflow-auto p-4">
             {activeTab === 'quiz' && (
               <div className="space-y-4">
                 {/* Available Quiz */}
@@ -288,9 +313,11 @@ export const LearningPage: React.FC = () => {
                           <p className="font-['Comfortaa', cursive] text-sm text-[#6B7280]">{currentLesson.quiz.questions.length} câu hỏi</p>
                         </div>
                       </div>
-                      <Button variant="primary" onClick={() => setQuizMode(true)}>
-                        Làm bài
-                      </Button>
+                      <Link to={`/quiz/${id}/do`}>
+                        <Button variant="primary">
+                          Làm bài
+                        </Button>
+                      </Link>
                     </div>
                   </Card>
                 ) : (
@@ -315,13 +342,18 @@ export const LearningPage: React.FC = () => {
                             <p className="font-['Comfortaa', cursive] text-[#263D5B]">{h.date}</p>
                             <p className="font-['Comfortaa', cursive] text-sm text-[#6B7280]">Thời gian: {h.time}</p>
                           </div>
-                          <div className="text-right">
-                            <span className={`font-['Comfortaa', cursive] text-lg font-bold ${h.score >= 7 ? 'text-green-600' : 'text-red-500'}`}>
-                              {h.score}/{h.total} điểm
-                            </span>
-                            <p className="font-['Comfortaa', cursive] text-xs text-[#6B7280]">
-                              {Math.round(h.score / h.total * 100)}%
-                            </p>
+                          <div className="flex items-center gap-3">
+                            <Link to={`/quiz/${id}/review`} className="font-['Comfortaa', cursive] text-xs text-[#49B6E5] hover:underline">
+                              Xem lại
+                            </Link>
+                            <div className="text-right">
+                              <span className={`font-['Comfortaa', cursive] text-lg font-bold ${h.score >= 7 ? 'text-green-600' : 'text-red-500'}`}>
+                                {h.score}/{h.total} điểm
+                              </span>
+                              <p className="font-['Comfortaa', cursive] text-xs text-[#6B7280]">
+                                {Math.round(h.score / h.total * 100)}%
+                              </p>
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -336,19 +368,53 @@ export const LearningPage: React.FC = () => {
               <div className="fixed inset-0 bg-white z-50 overflow-auto">
                 <div className="max-w-3xl mx-auto p-6">
                   <div className="flex items-center justify-between mb-6">
-                    <h2 className="font-['Comfortaa', cursive] text-2xl text-[#263D5B]">{currentLesson.title}</h2>
+                    <div>
+                      <h2 className="font-['Comfortaa', cursive] text-2xl text-[#263D5B]">{currentLesson.title}</h2>
+                      {quizReviewMode && (
+                        <p className="font-['Comfortaa', cursive] text-sm text-orange-500">Xem lại câu sai</p>
+                      )}
+                    </div>
                     <button type="button" onClick={() => setQuizMode(false)} className="p-2 hover:bg-gray-100 rounded-[8px]">
                       <X className="w-6 h-6 text-[#263D5B]" />
                     </button>
                   </div>
+
+                  {showQuizResult && quizScore && (
+                    <div className="mb-6 p-4 bg-[#F8F6F3] rounded-[12px] border-2 border-[#263D5B]">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-['Comfortaa', cursive] text-lg text-[#263D5B]">Điểm số</p>
+                          <p className="font-['Comfortaa', cursive] text-3xl font-bold text-[#263D5B]">
+                            {quizScore.correct}/{quizScore.total}
+                          </p>
+                          <p className={`font-['Comfortaa', cursive] ${quizScore.correct >= 7 ? 'text-green-600' : 'text-orange-500'}`}>
+                            {Math.round(quizScore.correct / quizScore.total * 100)}%
+                          </p>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <Button variant="primary" onClick={handleReviewWrong}>
+                            Xem câu sai
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   
                   <div className="space-y-4">
-                    {currentLesson.quiz.questions.map((q, idx) => (
-                      <div key={q.id} className="border-2 border-[#263D5B] rounded-[12px] p-4">
-                        <p className="font-['Comfortaa', cursive] text-lg text-[#263D5B] mb-3">{idx + 1}. {q.question}</p>
+                    {currentLesson.quiz.questions.map((q, idx) => {
+                      const userAnswer = quizAnswers[idx];
+                      const isWrong = showQuizResult && userAnswer !== q.correct;
+                      if (quizReviewMode && !isWrong) return null;
+                      
+                      return (
+                      <div key={q.id} className={`border-2 rounded-[12px] p-4 ${isWrong ? 'border-red-300 bg-red-50' : 'border-[#263D5B]'}`}>
+                        <p className="font-['Comfortaa', cursive] text-lg text-[#263D5B] mb-3">
+                          {quizReviewMode && <span className="text-red-500 mr-2">✗</span>}
+                          {idx + 1}. {q.question}
+                        </p>
                         <div className="space-y-2">
                           {q.options.map((option, optIdx) => {
-                            const isSelected = quizAnswers[idx] === optIdx;
+                            const isSelected = userAnswer === optIdx;
                             const isCorrect = q.correct === optIdx;
                             let btnClass = 'bg-white border-[#E5E1DC] text-[#6B7280] hover:border-[#263D5B]';
                             if (showQuizResult) {
@@ -368,7 +434,8 @@ export const LearningPage: React.FC = () => {
                           })}
                         </div>
                       </div>
-                    ))}
+                    );
+                    })}
                   </div>
                   
                   <div className="mt-6 flex items-center gap-4">
@@ -378,8 +445,7 @@ export const LearningPage: React.FC = () => {
                       </Button>
                     ) : (
                       <div className="flex items-center gap-4">
-                        <span className="font-['Comfortaa', cursive] text-green-600 font-bold">✓ Đã nộp</span>
-                        <button type="button" onClick={() => { setShowQuizResult(false); setQuizAnswers([]); }} className="font-['Comfortaa', cursive] text-sm text-[#49B6E5] underline">Làm lại</button>
+                        <Button variant="secondary" onClick={handleStartQuiz}>Làm lại</Button>
                         <Button variant="secondary" onClick={() => setQuizMode(false)}>Thoát</Button>
                       </div>
                     )}
@@ -428,8 +494,26 @@ export const LearningPage: React.FC = () => {
                   <input type="text" value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="Viết bình luận..." className="flex-1 px-4 py-2 border-2 border-[#263D5B] rounded-[8px] font-['Comfortaa', cursive]" />
                   <Button variant="primary" onClick={handleAddComment}><Send className="w-4 h-4" /></Button>
                 </div>
+                
+                {/* Sort */}
+                <div className="flex items-center justify-between">
+                  <span className="font-['Comfortaa', cursive] text-sm text-[#6B7280]">{currentLesson.comments.length} bình luận</span>
+                  <div className="flex items-center gap-2">
+                    <ArrowUpDown className="w-4 h-4 text-[#6B7280]" />
+                    <select
+                      value={sortComment}
+                      onChange={(e) => setSortComment(e.target.value as typeof sortComment)}
+                      className="px-2 py-1 border border-[#263D5B] rounded font-['Comfortaa', cursive] text-sm text-[#263D5B] bg-white"
+                    >
+                      <option value="newest">Mới nhất</option>
+                      <option value="oldest">Cũ nhất</option>
+                      <option value="popular">Phổ biến</option>
+                    </select>
+                  </div>
+                </div>
+                
                 <div className="space-y-4">
-                  {currentLesson.comments.map(comment => (
+                  {sortedComments.map(comment => (
                     <div key={comment.id} className="space-y-2">
                       <div className="flex items-start gap-3 p-3 bg-white rounded-[8px]">
                         <Avatar name={comment.avatar} size="md" />
@@ -447,6 +531,10 @@ export const LearningPage: React.FC = () => {
                             <button type="button" className="flex items-center gap-1 text-[#6B7280] hover:text-[#49B6E5]">
                               <Reply className="w-4 h-4" />
                               <span className="font-['Comfortaa', cursive] text-xs">Trả lời</span>
+                            </button>
+                            <button type="button" onClick={() => setReportModal({ open: true, userId: comment.id })} className="flex items-center gap-1 text-[#6B7280] hover:text-orange-500">
+                              <Flag className="w-4 h-4" />
+                              <span className="font-['Comfortaa', cursive] text-xs">Báo cáo</span>
                             </button>
                           </div>
                         </div>
@@ -467,6 +555,10 @@ export const LearningPage: React.FC = () => {
                                     <Heart className="w-3 h-3" />
                                     <span className="font-['Comfortaa', cursive] text-xs">Thích</span>
                                   </button>
+                                  <button type="button" onClick={() => setReportModal({ open: true, userId: reply.id })} className="flex items-center gap-1 text-[#6B7280] hover:text-orange-500">
+                                    <Flag className="w-3 h-3" />
+                                    <span className="font-['Comfortaa', cursive] text-xs">Báo cáo</span>
+                                  </button>
                                 </div>
                               </div>
                             </div>
@@ -481,8 +573,56 @@ export const LearningPage: React.FC = () => {
           </div>
         </div>
       </div>
-    </div>
-  );
-};
 
-export default LearningPage;
+      {/* Report Modal */}
+      {reportModal.open && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-[12px] p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-['Comfortaa', cursive] text-lg text-[#263D5B]">Báo cáo</h3>
+              <button type="button" onClick={() => { setReportModal({ open: false }); setReportReason(''); setReportOther(false); }}>
+                <X className="w-5 h-5 text-[#6B7280]" />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <button type="button" onClick={() => setReportReason('spam')} className={`w-full p-3 text-left border-2 rounded-[8px] font-['Comfortaa', cursive] text-[#263D5B] ${reportReason === 'spam' ? 'border-[#263D5B] bg-[#E8F6FC]' : 'border-[#E5E1DC] hover:border-[#263D5B]'}`}>
+                Spam hoặc quảng cáo
+              </button>
+              <button type="button" onClick={() => setReportReason('inappropriate')} className={`w-full p-3 text-left border-2 rounded-[8px] font-['Comfortaa', cursive] text-[#263D5B] ${reportReason === 'inappropriate' ? 'border-[#263D5B] bg-[#E8F6FC]' : 'border-[#E5E1DC] hover:border-[#263D5B]'}`}>
+                Nội dung không phù hợp
+              </button>
+              <button type="button" onClick={() => setReportReason('abuse')} className={`w-full p-3 text-left border-2 rounded-[8px] font-['Comfortaa', cursive] text-[#263D5B] ${reportReason === 'abuse' ? 'border-[#263D5B] bg-[#E8F6FC]' : 'border-[#E5E1DC] hover:border-[#263D5B]'}`}>
+                Lạm dụng hoặc quấy rối
+              </button>
+              <button type="button" onClick={() => setReportReason('false')} className={`w-full p-3 text-left border-2 rounded-[8px] font-['Comfortaa', cursive] text-[#263D5B] ${reportReason === 'false' ? 'border-[#263D5B] bg-[#E8F6FC]' : 'border-[#E5E1DC] hover:border-[#263D5B]'}`}>
+                Thông tin sai sự thật
+              </button>
+              <button type="button" onClick={() => { setReportOther(true); setReportReason(''); }} className={`w-full p-3 text-left border-2 rounded-[8px] font-['Comfortaa', cursive] text-[#263D5B] ${reportOther ? 'border-[#263D5B] bg-[#E8F6FC]' : 'border-[#E5E1DC] hover:border-[#263D5B]'}`}>
+                Lí do khác
+              </button>
+              {reportOther && (
+                <textarea
+                  value={reportReason}
+                  onChange={(e) => setReportReason(e.target.value)}
+                  placeholder="Nhập lí do của bạn..."
+                  className="w-full p-3 border-2 border-[#263D5B] rounded-[8px] font-['Comfortaa', cursive] text-[#263D5B] resize-none"
+                  rows={3}
+                />
+              )}
+            </div>
+            <div className="flex gap-3 mt-4">
+              <Button variant="secondary" onClick={() => { setReportModal({ open: false }); setReportReason(''); setReportOther(false); }} className="flex-1">
+                Hủy
+              </Button>
+              <Button variant="primary" onClick={() => { alert('Đã gửi báo cáo!'); setReportModal({ open: false }); setReportReason(''); setReportOther(false); }} className="flex-1" disabled={!reportReason}>
+                Gửi báo cáo
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default LearningPage
