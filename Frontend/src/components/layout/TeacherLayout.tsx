@@ -50,7 +50,7 @@ export const TeacherLayout: React.FC<TeacherLayoutProps> = ({ children }) => {
       <aside className={`
         fixed lg:static inset-y-0 left-0 z-50 w-64 bg-[#263D5B] text-white transform transition-transform duration-300
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-      `}>
+      `} style={{ WebkitTapHighlightColor: 'transparent' }}>
         <div className="flex flex-col h-full">
           <div className="p-4 border-b border-white/10">
             <div className="flex items-center justify-between">
@@ -61,7 +61,8 @@ export const TeacherLayout: React.FC<TeacherLayoutProps> = ({ children }) => {
               <button 
                 type="button"
                 onClick={() => setSidebarOpen(false)}
-                className="lg:hidden p-1"
+                className="lg:hidden p-1 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#49B6E5]/70"
+                style={{ WebkitTapHighlightColor: 'transparent' }}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -76,11 +77,12 @@ export const TeacherLayout: React.FC<TeacherLayoutProps> = ({ children }) => {
                 to={item.path}
                 onClick={() => setSidebarOpen(false)}
                 className={`
-                  flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors
+                  flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors outline-none
                   ${isActive(item.path) 
                     ? 'bg-[#49B6E5] text-white' 
-                    : 'text-white/70 hover:bg-white/10 hover:text-white'}
+                    : 'text-white/70 hover:bg-white/10 active:bg-white/10 hover:text-white'}
                 `}
+                style={{ WebkitTapHighlightColor: 'transparent' }}
               >
                 {item.icon}
                 <span className="font-['Comfortaa', cursive] text-sm">{item.label}</span>
@@ -101,7 +103,8 @@ export const TeacherLayout: React.FC<TeacherLayoutProps> = ({ children }) => {
             <Link
               to="/"
               onClick={() => setSidebarOpen(false)}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-white/70 hover:bg-white/10 hover:text-white transition-colors mb-2"
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-white/70 hover:bg-white/10 active:bg-white/10 hover:text-white transition-colors mb-2 outline-none"
+              style={{ WebkitTapHighlightColor: 'transparent' }}
             >
               <BookOpen className="w-5 h-5" />
               <span className="font-['Comfortaa', cursive] text-sm">Xem học viên</span>
@@ -109,7 +112,8 @@ export const TeacherLayout: React.FC<TeacherLayoutProps> = ({ children }) => {
             <button
               type="button"
               onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-white/70 hover:bg-white/10 hover:text-white transition-colors"
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-white/70 hover:bg-white/10 active:bg-white/10 hover:text-white transition-colors outline-none"
+              style={{ WebkitTapHighlightColor: 'transparent' }}
             >
               <LogOut className="w-5 h-5" />
               <span className="font-['Comfortaa', cursive] text-sm">Đăng xuất</span>
@@ -127,7 +131,8 @@ export const TeacherLayout: React.FC<TeacherLayoutProps> = ({ children }) => {
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
-            className="p-2"
+            className="p-2 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#49B6E5]/70"
+            style={{ WebkitTapHighlightColor: 'transparent' }}
           >
             <Menu className="w-6 h-6" />
           </button>

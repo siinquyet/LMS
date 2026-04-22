@@ -8,7 +8,11 @@
     "start": "NODE_ENV=production node dist/server.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
+    "prisma:seed": "prisma db seed",
     "lint": "biome lint src"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "express": "^4.21.0",

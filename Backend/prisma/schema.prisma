@@ -1,0 +1,364 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  hoc_vien
+  giang_vien
+  admin
+}
+
+enum CourseStatus {
+  draft
+  completed
+  pending
+  approved
+  rejected
+}
+
+enum LessonType {
+  video
+  document
+  quiz
+  exercise
+}
+
+enum OrderStatus {
+  pending
+  success
+  failed
+}
+
+enum PaymentStatus {
+  pending
+  success
+  failed
+}
+
+enum NotificationType {
+  info
+  success
+  warning
+  error
+}
+
+model User {
+  id                    Int                    @id @default(autoincrement())
+  username              String                 @unique @map("ten_dang_nhap")
+  email                 String                 @unique
+  password              String                 @map("mat_khau")
+  firstName             String                 @map("ten")
+  lastName              String                 @map("ho")
+  avatarUrl             String?                @map("anh_dai_dien")
+  phone                 String?                @map("so_dien_thoai")
+  address               String?                @map("dia_chi")
+  bio                   String?                @map("gioi_thieu")
+  isLocked              Boolean                @default(false) @map("bi_khoa")
+  joinedAt              DateTime               @map("ngay_tham_gia")
+  role                  Role                   @default(hoc_vien) @map("vai_tro")
+  taughtCourses         Course[]               @relation("CourseInstructor")
+  enrollments           Enrollment[]
+  lessonProgress        Progress[]
+  orders                Order[]
+  comments              Comment[]
+  notifications         Notification[]
+  forumTopics           ForumTopic[]
+  forumReplies          ForumReply[]
+  quizAttempts          QuizAttempt[]
+  assignmentSubmissions AssignmentSubmission[]
+  certificates          Certificate[]
+
+  @@map("nguoi_dung")
+}
+
+model Category {
+  id      Int      @id @default(autoincrement())
+  name    String   @map("ten")
+  courses Course[]
+
+  @@map("danh_muc")
+}
+
+model Course {
+  id                   Int            @id @default(autoincrement())
+  title                String         @map("tieu_de")
+  instructorId         Int            @map("giang_vien_id")
+  categoryId           Int            @map("danh_muc_id")
+  price                Int            @map("gia")
+  maxStudents          Int?           @map("so_luong_toi_da")
+  enrolledCount        Int            @default(0) @map("so_luong_da_dang_ky")
+  status               CourseStatus   @default(draft) @map("trang_thai")
+  description          String?        @map("mo_ta")
+  requirements         Json?          @map("yeu_cau")
+  deviceRequirements   Json?          @map("ban_thiet_bi")
+  thumbnailUrl         String?        @map("thumbnail")
+  imageUrl             String?        @map("hinh_anh")
+  level                String?        @map("muc_do")
+  duration             String?        @map("thoi_luong")
+  lessonCount          Int?           @map("so_bai_hoc")
+  rating               Float?         @map("xep_hang")
+  learningOutcomes     Json?          @map("what_you_learn")
+  instructor           User           @relation("CourseInstructor", fields: [instructorId], references: [id])
+  category             Category       @relation(fields: [categoryId], references: [id])
+  chapters             Chapter[]
+  enrollments          Enrollment[]
+  orderItems           OrderItem[]
+  forumTopics          ForumTopic[]
+  certificates         Certificate[]
+
+  @@index([instructorId])
+  @@index([categoryId])
+  @@map("khoa_hoc")
+}
+
+model Chapter {
+  id       Int      @id @default(autoincrement())
+  courseId Int      @map("khoa_hoc_id")
+  title    String   @map("tieu_de")
+  order    Int      @map("thu_tu")
+  course   Course   @relation(fields: [courseId], references: [id])
+  lessons  Lesson[]
+
+  @@index([courseId])
+  @@map("chuong_hoc")
+}
+
+model Lesson {
+  id          Int          @id @default(autoincrement())
+  chapterId   Int          @map("chuong_hoc_id")
+  title       String       @map("tieu_de")
+  videoUrl    String?      @map("video_url")
+  type        LessonType   @default(video) @map("loai")
+  duration    String?      @map("thoi_luong")
+  content     String?      @map("noi_dung")
+  chapter     Chapter      @relation(fields: [chapterId], references: [id])
+  progress    Progress[]
+  comments    Comment[]
+  quizzes     Quiz[]
+  assignments Assignment[]
+
+  @@index([chapterId])
+  @@map("bai_hoc")
+}
+
+model Enrollment {
+  id         Int      @id @default(autoincrement())
+  userId     Int      @map("nguoi_dung_id")
+  courseId   Int      @map("khoa_hoc_id")
+  enrolledAt DateTime @map("ngay_dang_ky")
+  user       User     @relation(fields: [userId], references: [id])
+  course     Course   @relation(fields: [courseId], references: [id])
+
+  @@unique([userId, courseId])
+  @@index([courseId])
+  @@map("dang_ky_khoa_hoc")
+}
+
+model Progress {
+  userId      Int       @map("nguoi_dung_id")
+  lessonId    Int       @map("bai_hoc_id")
+  completed   Boolean   @default(false) @map("da_hoan_thanh")
+  completedAt DateTime? @map("ngay_hoan_thanh")
+  user        User      @relation(fields: [userId], references: [id])
+  lesson      Lesson    @relation(fields: [lessonId], references: [id])
+
+  @@id([userId, lessonId])
+  @@index([lessonId])
+  @@map("tien_do_bai_hoc")
+}
+
+model Order {
+  id          Int          @id @default(autoincrement())
+  userId      Int          @map("nguoi_dung_id")
+  totalAmount Int          @map("tong_tien")
+  status      OrderStatus  @default(pending) @map("trang_thai")
+  orderedAt   DateTime     @map("ngay_dat")
+  user        User         @relation(fields: [userId], references: [id])
+  items       OrderItem[]
+  payments    Payment[]
+
+  @@index([userId])
+  @@map("don_hang")
+}
+
+model OrderItem {
+  id      Int    @id @default(autoincrement())
+  orderId Int    @map("don_hang_id")
+  courseId Int   @map("khoa_hoc_id")
+  price   Int    @map("gia")
+  order   Order  @relation(fields: [orderId], references: [id])
+  course  Course @relation(fields: [courseId], references: [id])
+
+  @@index([orderId])
+  @@index([courseId])
+  @@map("chi_tiet_don_hang")
+}
+
+model Payment {
+  id          Int           @id @default(autoincrement())
+  orderId     Int           @map("don_hang_id")
+  amount      Int           @map("so_tien")
+  status      PaymentStatus @default(pending) @map("trang_thai")
+  paidAt      DateTime      @map("ngay_thanh_toan")
+  method      String?       @map("phuong_thuc")
+  order       Order         @relation(fields: [orderId], references: [id])
+
+  @@index([orderId])
+  @@map("thanh_toan")
+}
+
+model Comment {
+  id        Int       @id @default(autoincrement())
+  lessonId  Int       @map("bai_hoc_id")
+  userId    Int       @map("nguoi_dung_id")
+  content   String    @map("noi_dung")
+  parentId  Int?      @map("parent_id")
+  createdAt DateTime  @map("ngay_tao")
+  lesson    Lesson    @relation(fields: [lessonId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
+  parent    Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
+  replies   Comment[] @relation("CommentReplies")
+
+  @@index([lessonId])
+  @@index([userId])
+  @@index([parentId])
+  @@map("binh_luan")
+}
+
+model Notification {
+  id        Int              @id @default(autoincrement())
+  userId    Int              @map("nguoi_dung_id")
+  title     String           @map("tieu_de")
+  content   String           @map("noi_dung")
+  type      NotificationType @map("loai")
+  isRead    Boolean          @default(false) @map("da_doc")
+  createdAt DateTime         @map("ngay_tao")
+  link      String?
+  user      User             @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("thong_bao")
+}
+
+model ForumTopic {
+  id         Int          @id @default(autoincrement())
+  userId     Int          @map("nguoi_dung_id")
+  title      String       @map("tieu_de")
+  content    String       @map("noi_dung")
+  courseId   Int?         @map("khoa_hoc_id")
+  viewCount  Int          @default(0) @map("luot_xem")
+  replyCount Int          @default(0) @map("luot_tra_loi")
+  createdAt  DateTime     @map("ngay_tao")
+  updatedAt  DateTime     @map("ngay_cap_nhat")
+  user       User         @relation(fields: [userId], references: [id])
+  course     Course?      @relation(fields: [courseId], references: [id])
+  replies    ForumReply[]
+
+  @@index([userId])
+  @@index([courseId])
+  @@map("chu_de_forum")
+}
+
+model ForumReply {
+  id        Int        @id @default(autoincrement())
+  topicId   Int        @map("topic_id")
+  userId    Int        @map("nguoi_dung_id")
+  content   String     @map("noi_dung")
+  createdAt DateTime   @map("ngay_tao")
+  topic     ForumTopic @relation(fields: [topicId], references: [id])
+  user      User       @relation(fields: [userId], references: [id])
+
+  @@index([topicId])
+  @@index([userId])
+  @@map("tra_loi_forum")
+}
+
+model Quiz {
+  id           Int            @id @default(autoincrement())
+  lessonId     Int            @map("bai_hoc_id")
+  title        String         @map("tieu_de")
+  timeLimit    Int?           @map("thoi_gian_lam")
+  questionCount Int           @map("so_cau_hoi")
+  lesson       Lesson         @relation(fields: [lessonId], references: [id])
+  questions    QuizQuestion[]
+  attempts     QuizAttempt[]
+
+  @@index([lessonId])
+  @@map("bai_kiem_tra")
+}
+
+model QuizQuestion {
+  id            Int      @id @default(autoincrement())
+  quizId        Int      @map("quiz_id")
+  question      String   @map("cau_hoi")
+  options       Json     @map("lua_chon")
+  correctAnswer String   @map("dap_an_dung")
+  quiz          Quiz     @relation(fields: [quizId], references: [id])
+
+  @@index([quizId])
+  @@map("cau_hoi")
+}
+
+model QuizAttempt {
+  id        Int      @id @default(autoincrement())
+  quizId     Int     @map("quiz_id")
+  userId     Int     @map("nguoi_dung_id")
+  score      Float   @map("diem")
+  takenAt    DateTime @map("ngay_lam")
+  quiz       Quiz    @relation(fields: [quizId], references: [id])
+  user       User    @relation(fields: [userId], references: [id])
+
+  @@index([quizId])
+  @@index([userId])
+  @@map("lam_bai")
+}
+
+model Assignment {
+  id           Int                    @id @default(autoincrement())
+  lessonId      Int                   @map("bai_hoc_id")
+  title         String                @map("tieu_de")
+  description   String                @map("mo_ta")
+  isRequired    Boolean               @default(false) @map("bat_buoc")
+  dueAt         DateTime?             @map("han_nop")
+  lesson        Lesson                @relation(fields: [lessonId], references: [id])
+  submissions   AssignmentSubmission[]
+
+  @@index([lessonId])
+  @@map("bai_tap")
+}
+
+model AssignmentSubmission {
+  id             Int         @id @default(autoincrement())
+  assignmentId   Int         @map("bai_tap_id")
+  userId         Int         @map("nguoi_dung_id")
+  content        String      @map("noi_dung")
+  attachmentUrl  String?     @map("file_dinh_kem")
+  score          Float?      @map("diem")
+  feedback       String?     @map("nhan_xet")
+  submittedAt    DateTime    @map("ngay_nop")
+  assignment     Assignment  @relation(fields: [assignmentId], references: [id])
+  user           User        @relation(fields: [userId], references: [id])
+
+  @@unique([assignmentId, userId])
+  @@index([userId])
+  @@map("nop_bai")
+}
+
+model Certificate {
+  id          Int      @id @default(autoincrement())
+  userId      Int      @map("nguoi_dung_id")
+  courseId    Int      @map("khoa_hoc_id")
+  issuedAt    DateTime @map("ngay_cap")
+  code        String   @unique @map("ma_chung_chi")
+  user        User     @relation(fields: [userId], references: [id])
+  course      Course   @relation(fields: [courseId], references: [id])
+
+  @@unique([userId, courseId])
+  @@index([courseId])
+  @@map("chung_chi")
+}
