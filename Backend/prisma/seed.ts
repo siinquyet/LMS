@@ -3,7 +3,6 @@ import {
   assignmentSubmissions,
   assignments,
   categories,
-  certificates,
   chapters,
   comments,
   courses,
@@ -39,7 +38,6 @@ async function main() {
   await prisma.payment.deleteMany();
   await prisma.orderItem.deleteMany();
   await prisma.order.deleteMany();
-  await prisma.certificate.deleteMany();
   await prisma.progress.deleteMany();
   await prisma.enrollment.deleteMany();
   await prisma.lesson.deleteMany();
@@ -285,15 +283,6 @@ async function main() {
     })),
   });
 
-  await prisma.certificate.createMany({
-    data: certificates.map((certificate) => ({
-      id: certificate.id,
-      userId: certificate.nguoi_dung_id,
-      courseId: certificate.khoa_hoc_id,
-      issuedAt: new Date(certificate.ngay_cap),
-      code: certificate.ma_chung_chi,
-    })),
-  });
 }
 
 main()

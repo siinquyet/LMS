@@ -12,6 +12,7 @@ import {
   Zap
 } from 'lucide-react';
 import { Button, Card, Progress } from '../components/common';
+import { learningQuizMock as mockQuiz, learningQuizResults as mockResults } from '../mockData';
 
 interface QuizQuestion {
   id: number;
@@ -27,55 +28,6 @@ interface QuizResult {
   answers: number[];
   completedAt: string;
 }
-
-const mockQuiz = {
-  id: 1,
-  title: 'Quiz chương 1: Giới thiệu React',
-  courseName: 'React & Next.js Full Course',
-  timeLimit: 600,
-  questions: [
-    {
-      id: 1,
-      question: 'React được phát triển bởi?',
-      options: ['Google', 'Facebook', 'Microsoft', 'Apple'],
-      correct: 1
-    },
-    {
-      id: 2,
-      question: 'React sử dụng mô hình nào?',
-      options: ['Object-Oriented', 'Component-based', 'Functional', 'Procedural'],
-      correct: 1
-    },
-    {
-      id: 3,
-      question: 'Virtual DOM là gì?',
-      options: [
-        'Một bản sao của DOM trong bộ nhớ',
-        'Một ngôn ngữ lập trình',
-        'Một thư viện CSS',
-        'Một database'
-      ],
-      correct: 0
-    },
-    {
-      id: 4,
-      question: 'JSX là viết tắt của?',
-      options: ['JavaScript XML', 'Java Syntax Extension', 'JavaScript Extra', 'JSON XML'],
-      correct: 0
-    },
-    {
-      id: 5,
-      question: 'Hàm nào dùng để render React vào DOM?',
-      options: ['React.render()', 'ReactDOM.render()', 'render()', 'React.renderDOM()'],
-      correct: 1
-    }
-  ] as QuizQuestion[]
-};
-
-const mockResults: QuizResult[] = [
-  { quizId: 1, score: 8, total: 10, answers: [1, 1, 1, 0, 1], completedAt: '2024-01-15 10:30' },
-  { quizId: 1, score: 6, total: 10, answers: [1, 0, 1, 0, 1], completedAt: '2024-01-10 14:20' },
-];
 
 export const QuizPage: React.FC = () => {
   const { courseId, lessonId } = useParams();

@@ -23,6 +23,8 @@ import {
   HeartOff
 } from 'lucide-react';
 import { Button, Card, Avatar, Badge, Sidebar, SidebarItem } from '../components/common';
+import Footer from '../components/layout/Footer';
+import { learningCourseData as courseData, learningQuizHistory as quizHistory } from '../mockData';
 
 interface Lesson {
   id: number;
@@ -55,102 +57,6 @@ interface Note {
   content: string;
 }
 
-const courseData = {
-  id: 1,
-  title: 'React & Next.js Full Course',
-  chapters: [
-    {
-      id: 1,
-      title: 'Giới thiệu React',
-      lessons: [
-        { id: 1, title: 'React là gì?', duration: '10:00', type: 'video', completed: true },
-        { id: 2, title: 'Cài đặt môi trường', duration: '15:00', type: 'video', completed: true },
-        { id: 3, title: 'Tài liệu React', duration: '5:00', type: 'document', completed: false },
-        { id: 4, title: 'Quiz chương 1', duration: '10:00', type: 'quiz', completed: false },
-      ]
-    },
-    {
-      id: 2,
-      title: 'JSX và Component',
-      lessons: [
-        { id: 5, title: 'JSX là gì?', duration: '12:00', type: 'video', completed: false },
-        { id: 6, title: 'Tạo Component', duration: '18:00', type: 'video', completed: false },
-        { id: 7, title: 'Props và State', duration: '25:00', type: 'video', completed: false },
-        { id: 8, title: 'Bài tập chương 2', duration: '30:00', type: 'exercise', completed: false },
-      ]
-    },
-    {
-      id: 3,
-      title: 'Hooks trong React',
-      lessons: [
-        { id: 9, title: 'useState', duration: '20:00', type: 'video', completed: false },
-        { id: 10, title: 'useEffect', duration: '25:00', type: 'video', completed: false },
-        { id: 11, title: 'Tài liệu Hooks', duration: '10:00', type: 'document', completed: false },
-        { id: 12, title: 'Quiz chương 3', duration: '20:00', type: 'quiz', completed: false },
-      ]
-    }
-  ] as Chapter[],
-  currentLesson: {
-    id: 1,
-    title: 'React là gì?',
-    type: 'video',
-    duration: '10:00',
-    videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
-    content: `React là một thư viện JavaScript mã nguồn mở được phát triển bởi Facebook (Meta). 
-Nó được sử dụng để xây dựng giao diện người dùng (UI) cho các ứng dụng web một cách nhanh chóng và hiệu quả.
-React sử dụng mô hình component-based, cho phép chia nhỏ giao diện thành các phần độc lập có thể tái sử dụng.`,
-    notes: [
-      { id: 1, timestamp: '0:30', content: 'Giới thiệu về React' },
-      { id: 2, timestamp: '2:15', content: 'Tại sao nên dùng React?' },
-      { id: 3, timestamp: '5:00', content: 'Virtual DOM là gì?' },
-    ] as Note[],
-    documents: [
-      { id: 1, title: 'React Documentation', size: '2.5 MB' },
-      { id: 2, title: 'Getting Started Guide', size: '1.2 MB' },
-    ],
-    quiz: {
-      questions: [
-        {
-          id: 1,
-          question: 'React được phát triển bởi ai?',
-          options: ['Google', 'Facebook', 'Microsoft', 'Apple'],
-          correct: 1
-        },
-        {
-          id: 2,
-          question: 'React sử dụng mô hình n��o?',
-          options: ['Object-Oriented', 'Component-based', 'Functional', 'Procedural'],
-          correct: 1
-        }
-      ]
-    },
-    comments: [
-      {
-        id: 1,
-        user: 'Nguyen Van A',
-        avatar: 'NVA',
-        content: 'Bài giảng rất dễ hiểu, cảm ơn thầy!',
-        time: '2 giờ trước',
-        replies: [
-          {
-            id: 2,
-            user: 'Tran Thi B',
-            avatar: 'TTB',
-            content: 'Đồng ý, em cũng thấy dễ hiểu lắm!',
-            time: '1 giờ trước'
-          }
-        ]
-      },
-      {
-        id: 3,
-        user: 'Le Van C',
-        avatar: 'LVC',
-        content: 'Cho em hỏi Virtual DOM khác gì Real DOM?',
-        time: '30 phút trước'
-      }
-    ] as Comment[]
-  }
-};
 
 export const LearningPage: React.FC = () => {
   const { id } = useParams();
@@ -167,10 +73,6 @@ export const LearningPage: React.FC = () => {
   const [reportOther, setReportOther] = useState(false);
   const [sortComment, setSortComment] = useState<'newest' | 'oldest' | 'popular'>('newest');
 
-  const quizHistory = [
-    { id: 1, date: '2024-01-15', score: 8, total: 10, time: '15 phút' },
-    { id: 2, date: '2024-01-10', score: 6, total: 10, time: '20 phút' },
-  ];
   const [newComment, setNewComment] = useState('');
   const [newNote, setNewNote] = useState('');
 
@@ -232,37 +134,38 @@ export const LearningPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8F6F3] flex">
-      <Sidebar 
-        items={buildSidebarItems()} 
-        collapsed={sidebarCollapsed}
-        onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
-        className="h-auto overflow-y-auto flex-shrink-0"
-      />
-
-      <div className="flex-1 flex flex-col">
-        {/* Header with navigation */}
-        <div className="bg-[#263D5B] text-white px-4 py-3 flex items-center justify-between shrink-0 z-10 gap-4">
-          <div className="flex items-center gap-3">
-            <button type="button" onClick={() => setSidebarCollapsed(!sidebarCollapsed)} className="p-2 hover:bg-white/10 rounded-[8px]">
-              {sidebarCollapsed ? <Menu className="w-5 h-5" /> : <X className="w-5 h-5" />}
-            </button>
-            <Link to="/my-courses" className="flex items-center gap-2 text-white/70 hover:text-white">
-              <ChevronLeft className="w-5 h-5" />
-              <span className="font-['Comfortaa', cursive] hidden sm:inline">Quay lại</span>
-            </Link>
-          </div>
-          <div className="flex items-center gap-2">
-            <button type="button" className="p-2 hover:bg-white/10 rounded-[8px]">
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <span className="font-['Comfortaa', cursive] text-sm">{currentLesson.title}</span>
-            <button type="button" className="p-2 hover:bg-white/10 rounded-[8px]">
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
+    <div className="min-h-screen bg-[#F8F6F3] flex flex-col">
+      {/* Header with navigation */}
+      <div className="bg-[#263D5B] text-white px-4 py-3 flex items-center justify-between shrink-0 z-10 gap-4">
+        <div className="flex items-center gap-3">
+          <button type="button" onClick={() => setSidebarCollapsed(!sidebarCollapsed)} className="p-2 hover:bg-white/10 rounded-[8px]">
+            {sidebarCollapsed ? <Menu className="w-5 h-5" /> : <X className="w-5 h-5" />}
+          </button>
+          <Link to="/my-courses" className="flex items-center gap-2 text-white/70 hover:text-white">
+            <ChevronLeft className="w-5 h-5" />
+            <span className="font-['Comfortaa', cursive] hidden sm:inline">Quay lại</span>
+          </Link>
         </div>
+        <div className="flex items-center gap-2">
+          <button type="button" className="p-2 hover:bg-white/10 rounded-[8px]">
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <span className="font-['Comfortaa', cursive] text-sm">{currentLesson.title}</span>
+          <button type="button" className="p-2 hover:bg-white/10 rounded-[8px]">
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
 
+      <div className="flex flex-1 items-stretch min-h-[calc(100vh-64px)]">
+        <Sidebar 
+          items={buildSidebarItems()} 
+          collapsed={sidebarCollapsed}
+          onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+          className="sticky top-16 self-start h-[calc(100vh-64px)] flex-shrink-0"
+        />
+
+        <div className="flex-1 flex flex-col min-h-0">
         {/* Video section - fixed */}
         <div className="shrink-0">
           {currentLesson.type === 'video' && (
@@ -571,6 +474,7 @@ export const LearningPage: React.FC = () => {
               </div>
             )}
           </div>
+          </div>
         </div>
       </div>
 
@@ -621,6 +525,8 @@ export const LearningPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      <Footer />
     </div>
   )
 }

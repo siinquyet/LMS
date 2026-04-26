@@ -439,17 +439,338 @@ export const assignmentSubmissions: AssignmentSubmission[] = [
   { id: 1, bai_tap_id: 1, nguoi_dung_id: 1, noi_dung: 'Đã hoàn thành bài tập', diem: 9, nhan_xet: 'Làm tốt lắm!', ngay_nop: '2025-02-15' },
 ];
 
-// -------------------- 15. CHỨNG CHỈ --------------------
-export interface Certificate {
-  id: number;
-  nguoi_dung_id: number;
-  khoa_hoc_id: number;
-  ngay_cap: string;
-  ma_chung_chi: string;
-}
+// -------------------- 15. UI MOCKS --------------------
+export const adminDashboardCourses = [
+  { id: 1, title: 'React & Next.js Full Course', instructor: 'Trần Thị B', thumbnail: 'https://picsum.photos/seed/react/300/200', students: 1250, price: 699000, status: 'approved' as const },
+  { id: 2, title: 'TypeScript Fundamentals', instructor: 'Trần Thị B', thumbnail: 'https://picsum.photos/seed/ts/300/200', students: 890, price: 499000, status: 'approved' as const },
+  { id: 3, title: 'Node.js Backend', instructor: 'Lê Văn C', thumbnail: 'https://picsum.photos/seed/node/300/200', students: 200, price: 799000, status: 'pending' as const },
+  { id: 4, title: 'Vue.js Complete', instructor: 'Lê Văn C', thumbnail: 'https://picsum.photos/seed/vue/300/200', students: 0, price: 599000, status: 'draft' as const },
+];
 
-export const certificates: Certificate[] = [
-  { id: 1, nguoi_dung_id: 1, khoa_hoc_id: 1, ngay_cap: '2025-03-01', ma_chung_chi: 'LMS-2025-001' },
+export const adminUsers = [
+  { id: 1, name: 'Nguyễn Văn A', email: 'user@example.com', role: 'hoc_vien' as const, status: 'active' as const, joinedDate: '2024-01-15' },
+  { id: 2, name: 'Trần Thị B', email: 'teacher@example.com', role: 'giang_vien' as const, status: 'active' as const, joinedDate: '2024-02-20' },
+  { id: 3, name: 'Lê Văn C', email: 'levanc@example.com', role: 'giang_vien' as const, status: 'active' as const, joinedDate: '2024-02-25' },
+  { id: 4, name: 'Phạm Thị D', email: 'phamt@example.com', role: 'hoc_vien' as const, status: 'banned' as const, joinedDate: '2024-03-10' },
+];
+
+export const adminOrders = [
+  { id: 1, user: 'Nguyễn Văn A', course: 'React & Next.js', amount: 699000, status: 'success' as const, date: '2024-07-15' },
+  { id: 2, user: 'Trần Thị B', course: 'TypeScript', amount: 499000, status: 'success' as const, date: '2024-07-14' },
+  { id: 3, user: 'Lê Văn C', course: 'Node.js', amount: 799000, status: 'success' as const, date: '2024-07-13' },
+  { id: 4, user: 'Phạm Thị D', course: 'React & Next.js', amount: 699000, status: 'success' as const, date: '2024-06-12' },
+  { id: 5, user: 'Hoàng Văn E', course: 'Python', amount: 599000, status: 'success' as const, date: '2024-06-10' },
+  { id: 6, user: 'Nguyễn Thị F', course: 'Vue.js', amount: 549000, status: 'success' as const, date: '2024-05-08' },
+  { id: 7, user: 'Trần Văn G', course: 'SQL', amount: 449000, status: 'success' as const, date: '2024-05-05' },
+];
+
+export const adminReports = [
+  { id: 1, reporterId: 1, reporterName: 'Nguyễn Văn A', reportedUserId: 4, reportedUserName: 'Phạm Thị D', reason: 'Spam nội dung không phù hợp', status: 'pending' as const, createdAt: '2024-04-15' },
+  { id: 2, reporterId: 2, reporterName: 'Trần Thị B', reportedUserId: 1, reportedUserName: 'Nguyễn Văn A', reason: 'Quấy rối trong khóa học', status: 'pending' as const, createdAt: '2024-04-14' },
+];
+
+export const adminMonthRevenue = [
+  { month: 'T1', revenue: 12500000 },
+  { month: 'T2', revenue: 18200000 },
+  { month: 'T3', revenue: 15800000 },
+  { month: 'T4', revenue: 22100000 },
+  { month: 'T5', revenue: 28500000 },
+  { month: 'T6', revenue: 52400000 },
+  { month: 'T7', revenue: 34950000 },
+];
+
+export const teacherDashboardCourses = [
+  { id: 1, title: 'React & Next.js Full Course', thumbnail: 'https://picsum.photos/seed/react/300/200', students: 1250, revenue: 875000000, rating: 4.8, lessons: 50, status: 'approved' as const },
+  { id: 2, title: 'TypeScript Fundamentals', thumbnail: 'https://picsum.photos/seed/ts/300/200', students: 890, revenue: 444000000, rating: 4.9, lessons: 30, status: 'approved' as const },
+  { id: 3, title: 'Node.js Backend', thumbnail: 'https://picsum.photos/seed/node/300/200', students: 200, revenue: 160000000, rating: 4.6, lessons: 40, status: 'pending' as const },
+];
+
+export const teacherDashboardStudents = [
+  { id: 1, name: 'Nguyễn Văn A', avatar: 'NVA', course: 'React & Next.js Full Course', progress: 75, enrolledDate: '15/01/2026' },
+  { id: 2, name: 'Trần Thị B', avatar: 'TTB', course: 'TypeScript Fundamentals', progress: 45, enrolledDate: '20/01/2026' },
+  { id: 3, name: 'Lê Văn C', avatar: 'LVC', course: 'React & Next.js Full Course', progress: 30, enrolledDate: '22/01/2026' },
+  { id: 4, name: 'Phạm Thị D', avatar: 'PTD', course: 'Node.js Backend', progress: 90, enrolledDate: '25/01/2026' },
+  { id: 5, name: 'Hoàng Văn E', avatar: 'HVE', course: 'TypeScript Fundamentals', progress: 60, enrolledDate: '28/01/2026' },
+];
+
+export const teacherRevenueData = [
+  { label: 'T2', value: 12.5 },
+  { label: 'T3', value: 18.2 },
+  { label: 'T4', value: 15.8 },
+  { label: 'T5', value: 22.1 },
+  { label: 'T6', value: 28.5 },
+  { label: 'T7', value: 52.4 },
+];
+
+export const teacherStudents = [
+  { id: 1, name: 'Nguyen Van An', email: 'an.nguyen@example.com', phone: '0901 234 567', course: 'React & Next.js Full Course', progress: 82, enrolledDate: '15/01/2026', lastActive: '2 giờ trước', status: 'active' as const },
+  { id: 2, name: 'Tran Thi Bich', email: 'bich.tran@example.com', phone: '0902 345 678', course: 'TypeScript Fundamentals', progress: 46, enrolledDate: '20/01/2026', lastActive: 'Hôm qua', status: 'active' as const },
+  { id: 3, name: 'Le Minh Chau', email: 'chau.le@example.com', phone: '0903 456 789', course: 'React & Next.js Full Course', progress: 18, enrolledDate: '22/01/2026', lastActive: '5 ngày trước', status: 'at-risk' as const },
+  { id: 4, name: 'Pham Gia Huy', email: 'huy.pham@example.com', phone: '0904 567 890', course: 'Node.js Backend', progress: 100, enrolledDate: '25/01/2026', lastActive: '1 giờ trước', status: 'completed' as const },
+  { id: 5, name: 'Hoang Thu Ha', email: 'ha.hoang@example.com', phone: '0905 678 901', course: 'TypeScript Fundamentals', progress: 61, enrolledDate: '28/01/2026', lastActive: '3 giờ trước', status: 'active' as const },
+  { id: 6, name: 'Do Quoc Khanh', email: 'khanh.do@example.com', phone: '0906 789 012', course: 'Node.js Backend', progress: 29, enrolledDate: '01/02/2026', lastActive: '1 tuần trước', status: 'at-risk' as const },
+];
+
+export const teacherCourses = [
+  {
+    id: 1,
+    title: 'React & Next.js Full Course',
+    description: 'Học React từ cơ bản đến nâng cao',
+    price: 699000,
+    thumbnail: 'https://picsum.photos/seed/react/300/200',
+    category: 'programming',
+    level: 'Nâng cao',
+    duration: '40 giờ',
+    status: 'completed' as const,
+    students: 1250,
+    rating: 4.8,
+    requirements: ['Biết cơ bản HTML, CSS, JavaScript', 'Máy tính có kết nối internet'],
+    whatYouLearn: ['Xây dựng ứng dụng React', 'Tạo API với Next.js'],
+    chapters: [
+      {
+        id: 1,
+        title: 'Chương 1: React Cơ bản',
+        order: 1,
+        videos: [
+          {
+            id: 1,
+            title: 'Giới thiệu React',
+            description: 'Tổng quan về React và cách cài đặt',
+            videoUrl: 'https://example.com/video1.mp4',
+            duration: '15:30',
+            order: 1,
+            freePreview: true,
+            documents: [
+              { id: 1, title: 'Slide bài giảng', fileUrl: '#', fileType: 'PDF' },
+              { id: 2, title: 'Mã nguồn mẫu', fileUrl: '#', fileType: 'ZIP' },
+            ],
+            exercises: [
+              {
+                id: 1,
+                title: 'Quiz React cơ bản',
+                description: 'Kiểm tra kiến thức React',
+                type: 'quiz' as const,
+                questions: [
+                  { id: 1, question: 'React là gì?', options: [{ id: 1, text: 'Framework' }, { id: 2, text: 'Library' }, { id: 3, text: 'Ngôn ngữ' }], correctOptionId: 1 },
+                ],
+              },
+            ],
+          },
+          {
+            id: 2,
+            title: 'Component trong React',
+            description: 'Tìm hiểu về Component',
+            videoUrl: 'https://example.com/video2.mp4',
+            duration: '20:00',
+            order: 2,
+            freePreview: false,
+            documents: [],
+            exercises: [],
+          },
+        ],
+      },
+      {
+        id: 2,
+        title: 'Chương 2: Next.js Nâng cao',
+        order: 2,
+        videos: [
+          {
+            id: 3,
+            title: 'Server Components',
+            description: 'Tìm hiểu về Server Components trong Next.js',
+            videoUrl: 'https://example.com/video3.mp4',
+            duration: '25:00',
+            order: 1,
+            freePreview: false,
+            documents: [{ id: 3, title: 'Tài liệu Next.js', fileUrl: '#', fileType: 'PDF' }],
+            exercises: [],
+          },
+        ],
+      },
+    ],
+  },
+  { id: 2, title: 'TypeScript Fundamentals', description: 'TypeScript cho người mới', price: 499000, thumbnail: 'https://picsum.photos/seed/ts/300/200', category: 'programming', level: 'Cơ bản', duration: '20 giờ', status: 'pending' as const, students: 0, rating: 0, chapters: [], requirements: [], whatYouLearn: [] },
+  { id: 3, title: 'Node.js Backend', description: 'Xây dựng API', price: 799000, thumbnail: 'https://picsum.photos/seed/node/300/200', category: 'programming', level: 'Trung cấp', duration: '35 giờ', status: 'draft' as const, students: 0, rating: 0, chapters: [], requirements: [], whatYouLearn: [] },
+];
+
+export const profileMockUser = {
+  id: 1,
+  ten_dang_nhap: 'user',
+  email: 'user@example.com',
+  ho: 'Nguyễn',
+  ten: 'Văn A',
+  so_dien_thoai: '0123456789',
+  dia_chi: 'Hà Nội, Việt Nam',
+  gioi_thieu: 'Yêu thích học lập trình, đặc biệt là React và Node.js',
+  anh_dai_dien: 'NVA',
+  ngay_tham_gia: '2024-01-15',
+  ngay_sinh: '2000-01-01',
+  gioi_tinh: 'Nam',
+  trinh_do: 'Đại học',
+  nghe_nghiep: 'Lập trình viên',
+  facebook: 'https://facebook.com/user',
+  linkedin: 'https://linkedin.com/in/user',
+};
+
+export const profileMockEnrolledCourses = [
+  { id: 1, title: 'React & Next.js Full Course', progress: 75, thumbnail: '' },
+  { id: 2, title: 'TypeScript Fundamentals', progress: 100, thumbnail: '' },
+  { id: 3, title: 'Node.js Backend Development', progress: 45, thumbnail: '' },
+];
+
+export const learningQuizMock = {
+  id: 1,
+  title: 'Quiz chương 1: Giới thiệu React',
+  courseName: 'React & Next.js Full Course',
+  timeLimit: 600,
+  questions: [
+    { id: 1, question: 'React được phát triển bởi?', options: ['Google', 'Facebook', 'Microsoft', 'Apple'], correct: 1 },
+    { id: 2, question: 'React sử dụng mô hình nào?', options: ['Object-Oriented', 'Component-based', 'Functional', 'Procedural'], correct: 1 },
+    { id: 3, question: 'Virtual DOM là gì?', options: ['Bản sao của DOM trong bộ nhớ', 'Ngôn ngữ lập trình', 'Thư viện CSS', 'Database'], correct: 0 },
+    { id: 4, question: 'JSX là viết tắt của?', options: ['JavaScript XML', 'Java Syntax Extension', 'JavaScript Extra', 'JSON XML'], correct: 0 },
+    { id: 5, question: 'Hàm nào dùng để render React?', options: ['React.render()', 'ReactDOM.render()', 'render()', 'React.renderDOM()'], correct: 1 },
+  ],
+};
+
+export const learningQuizResults = [
+  { quizId: 1, score: 8, total: 10, answers: [1, 1, 1, 0, 1], completedAt: '2024-01-15 10:30' },
+  { quizId: 1, score: 6, total: 10, answers: [1, 0, 1, 0, 1], completedAt: '2024-01-10 14:20' },
+];
+
+export const teacherAnalyticsRevenueData = [
+  { id: 1, course: 'React & Next.js Full Course', category: 'Lập trình', period: '2026-01', status: 'completed' as const, students: 148, orders: 52, revenue: 36400000, growth: 12 },
+  { id: 2, course: 'React & Next.js Full Course', category: 'Lập trình', period: '2026-02', status: 'completed' as const, students: 176, orders: 61, revenue: 42700000, growth: 17 },
+  { id: 3, course: 'TypeScript Fundamentals', category: 'Lập trình', period: '2026-01', status: 'approved' as const, students: 97, orders: 34, revenue: 16900000, growth: 8 },
+  { id: 4, course: 'TypeScript Fundamentals', category: 'Lập trình', period: '2026-02', status: 'approved' as const, students: 112, orders: 39, revenue: 19400000, growth: 10 },
+  { id: 5, course: 'Node.js Backend', category: 'Lập trình', period: '2026-01', status: 'pending' as const, students: 43, orders: 15, revenue: 11900000, growth: -3 },
+  { id: 6, course: 'Node.js Backend', category: 'Lập trình', period: '2026-02', status: 'pending' as const, students: 58, orders: 19, revenue: 15100000, growth: 6 },
+  { id: 7, course: 'UI Design Masterclass', category: 'Thiết kế', period: '2026-01', status: 'draft' as const, students: 25, orders: 9, revenue: 7200000, growth: 0 },
+  { id: 8, course: 'UI Design Masterclass', category: 'Thiết kế', period: '2026-02', status: 'draft' as const, students: 31, orders: 11, revenue: 8800000, growth: 4 },
+];
+
+export const homeDemoCourses = [
+  { id: 1, title: 'React & Next.js Full Course', instructor: 'Nguyen Van A', price: 699000, rating: 4.8, students: 1250, thumbnail: 'https://picsum.photos/seed/react/300/200', level: 'Trung cấp', duration: '40 giờ' },
+  { id: 2, title: 'TypeScript Fundamentals', instructor: 'Tran Thi B', price: 499000, rating: 4.9, students: 890, thumbnail: 'https://picsum.photos/seed/ts/300/200', level: 'Cơ bản', duration: '20 giờ' },
+  { id: 3, title: 'Node.js Backend Development', instructor: 'Le Van C', price: 799000, rating: 4.7, students: 2100, thumbnail: 'https://picsum.photos/seed/node/300/200', level: 'Nâng cao', duration: '50 giờ' },
+  { id: 4, title: 'Python for Data Science', instructor: 'Pham Thi D', price: 599000, rating: 4.8, students: 1560, thumbnail: 'https://picsum.photos/seed/python/300/200', level: 'Trung cấp', duration: '35 giờ' },
+];
+
+export const homeReviews = [
+  { id: 1, name: 'Nguyễn Minh Khoa', avatar: 'NMK', rating: 5, comment: 'Khóa học tuyệt vời! Giảng viên dạy rất dễ hiểu, có doodle style vui vẻ. Đã học xong và apply được vào công việc.', course: 'React & Next.js' },
+  { id: 2, name: 'Trần Thị Hương', avatar: 'TTH', rating: 5, comment: 'Giao diện đẹp, dễ sử dụng. Đặc biệt thích phần bài tập thực hành, giúp mình cải thiện kỹ năng nhanh chóng.', course: 'TypeScript' },
+  { id: 3, name: 'Lê Đình Phong', avatar: 'LDP', rating: 4, comment: 'Nội dung chất lượng, có cả quiz và assignment. Free trial 7 ngày rất hữu ích để trải nghiệm trước khi mua.', course: 'Node.js' },
+];
+
+export const homeBenefits = [
+  { title: 'Học nhanh', desc: 'Nội dung ngắn gọn, dễ hiểu' },
+  { title: 'Mọi lúc', desc: 'Truy cập không giới hạn 24/7' },
+  { title: 'Chứng nhận', desc: 'Nhận chứng chỉ khi hoàn thành' },
+  { title: 'Dùng thử', desc: 'Trải nghiệm miễn phí 7 ngày' },
+];
+
+export const homeStats = [
+  { value: '10,000+', label: 'Học viên' },
+  { value: '200+', label: 'Khóa học' },
+  { value: '50+', label: 'Giảng viên' },
+  { value: '4.8', label: 'Đánh giá' },
+];
+
+export const homeCategories = [
+  { id: 'programming', name: 'Lập trình', count: 45, color: 'bg-[#E8F6FC]' },
+  { id: 'design', name: 'Thiết kế', count: 28, color: 'bg-[#FEF3C7]' },
+  { id: 'marketing', name: 'Marketing', count: 32, color: 'bg-[#ECFDF5]' },
+  { id: 'business', name: 'Kinh doanh', count: 22, color: 'bg-[#F3E8FF]' },
+];
+
+export const storeCourses = [
+  { id: 1, title: 'React & Next.js Full Course', instructor: 'Nguyen Van A', price: 699000, rating: 4.8, students: 1250, thumbnail: 'https://picsum.photos/seed/react/300/200', category: 'programming', level: 'Nâng cao' },
+  { id: 2, title: 'TypeScript Fundamentals', instructor: 'Tran Thi B', price: 499000, rating: 4.9, students: 890, thumbnail: 'https://picsum.photos/seed/ts/300/200', category: 'programming', level: 'Cơ bản' },
+  { id: 3, title: 'UI/UX Design Master', instructor: 'Le Thi C', price: 599000, rating: 4.7, students: 2100, thumbnail: 'https://picsum.photos/seed/ux/300/200', category: 'design', level: 'Trung cấp' },
+  { id: 4, title: 'Digital Marketing 2024', instructor: 'Pham Van D', price: 449000, rating: 4.6, students: 1560, thumbnail: 'https://picsum.photos/seed/marketing/300/200', category: 'marketing', level: 'Cơ bản' },
+  { id: 5, title: 'Python for Data Science', instructor: 'Nguyen Thi E', price: 799000, rating: 4.8, students: 980, thumbnail: 'https://picsum.photos/seed/python/300/200', category: 'programming', level: 'Nâng cao' },
+  { id: 6, title: 'Business Strategy', instructor: 'Tran Van F', price: 549000, rating: 4.5, students: 720, thumbnail: 'https://picsum.photos/seed/business/300/200', category: 'business', level: 'Trung cấp' },
+  { id: 7, title: 'Vue.js 3 Complete Guide', instructor: 'Hoang Van G', price: 599000, rating: 4.7, students: 650, thumbnail: 'https://picsum.photos/seed/vue/300/200', category: 'programming', level: 'Trung cấp' },
+  { id: 8, title: 'Figma for Beginners', instructor: 'Nguyen Thi H', price: 399000, rating: 4.9, students: 1800, thumbnail: 'https://picsum.photos/seed/figma/300/200', category: 'design', level: 'Cơ bản' },
+  { id: 9, title: 'AWS Cloud Practitioner', instructor: 'Le Van I', price: 899000, rating: 4.6, students: 420, thumbnail: 'https://picsum.photos/seed/aws/300/200', category: 'programming', level: 'Nâng cao' },
+  { id: 10, title: 'Content Marketing SEO', instructor: 'Tran Thi K', price: 349000, rating: 4.4, students: 920, thumbnail: 'https://picsum.photos/seed/seo/300/200', category: 'marketing', level: 'Cơ bản' },
+  { id: 11, title: 'Financial Analysis', instructor: 'Pham Van L', price: 649000, rating: 4.5, students: 380, thumbnail: 'https://picsum.photos/seed/finance/300/200', category: 'business', level: 'Nâng cao' },
+  { id: 12, title: 'Flutter Mobile Development', instructor: 'Nguyen Van M', price: 749000, rating: 4.8, students: 560, thumbnail: 'https://picsum.photos/seed/flutter/300/200', category: 'programming', level: 'Trung cấp' },
+];
+
+export const storeCategories = [
+  { value: '', label: 'Tất cả danh mục' },
+  { value: 'programming', label: 'Lập trình' },
+  { value: 'design', label: 'Thiết kế' },
+  { value: 'marketing', label: 'Marketing' },
+  { value: 'business', label: 'Kinh doanh' },
+];
+
+export const storeLevels = [
+  { value: '', label: 'Tất cả cấp độ' },
+  { value: 'basic', label: 'Cơ bản' },
+  { value: 'intermediate', label: 'Trung cấp' },
+  { value: 'advanced', label: 'Nâng cao' },
+];
+
+export const courseDetailMockData = {
+  id: 1,
+  title: 'React & Next.js Full Course',
+  instructor: 'Nguyen Van A',
+  instructorAvatar: 'NVA',
+  price: 699000,
+  originalPrice: 999000,
+  rating: 4.8,
+  students: 1250,
+  thumbnail: 'https://picsum.photos/seed/react/800/400',
+  category: 'Lập trình',
+  level: 'Nâng cao',
+  duration: '40 giờ',
+  lessons: 120,
+  description: 'Khóa học toàn diện về React và Next.js, từ cơ bản đến nâng cao. Bạn sẽ học cách xây dựng ứng dụng web hiện đại với React, quản lý state, routing, và triển khai ứng dụng với Next.js.',
+  whatYouLearn: ['Xây dựng ứng dụng React từ đầu', 'Quản lý state với Redux và Context API', 'Tạo API với Next.js', 'Triển khai ứng dụng lên production', 'Responsive design và UI/UX tốt', 'Testing và debug ứng dụng'],
+  requirements: ['Biết cơ bản HTML, CSS, JavaScript', 'Máy tính có kết nối internet', 'Đam mê học lập trình web'],
+  chapters: [
+    { id: 1, title: 'Giới thiệu React', lessons: [{ id: 1, title: 'React là gì?', duration: '10:00', type: 'video', free: true }, { id: 2, title: 'Cài đặt môi trường', duration: '15:00', type: 'video', free: true }, { id: 3, title: 'Tạo project đầu tiên', duration: '20:00', type: 'video', free: false }] },
+    { id: 2, title: 'JSX và Component', lessons: [{ id: 4, title: 'JSX là gì?', duration: '12:00', type: 'video', free: false }, { id: 5, title: 'Tạo Component', duration: '18:00', type: 'video', free: false }, { id: 6, title: 'Props và State', duration: '25:00', type: 'video', free: false }, { id: 7, title: 'Bài tập chương', duration: '30:00', type: 'exercise', free: false }] },
+    { id: 3, title: 'Hooks trong React', lessons: [{ id: 8, title: 'useState', duration: '20:00', type: 'video', free: false }, { id: 9, title: 'useEffect', duration: '25:00', type: 'video', free: false }, { id: 10, title: 'useContext', duration: '15:00', type: 'video', free: false }, { id: 11, title: 'Quiz chương', duration: '20:00', type: 'quiz', free: false }] },
+    { id: 4, title: 'Next.js Fundamentals', lessons: [{ id: 12, title: 'Giới thiệu Next.js', duration: '15:00', type: 'video', free: false }, { id: 13, title: 'Routing trong Next.js', duration: '20:00', type: 'video', free: false }, { id: 14, title: 'API Routes', duration: '25:00', type: 'video', free: false }, { id: 15, title: 'Deployment', duration: '30:00', type: 'video', free: false }] },
+  ],
+  instructorBio: 'Giảng viên Nguyễn Văn A với hơn 10 năm kinh nghiệm trong lĩnh vực phát triển web. Đã làm việc tại nhiều công ty công nghệ hàng đầu và có kinh nghiệm giảng dạy cho hàng nghìn học viên.',
+  ratings: [
+    { id: 1, user: 'Nguyen Van A', avatar: 'NVA', rating: 5, comment: 'Khóa học rất hay, giảng viên dạy rất dễ hiểu!', time: '2 ngày trước', likes: 12 },
+    { id: 2, user: 'Tran Thi B', avatar: 'TTB', rating: 4, comment: 'Nội dung chi tiết, có thực hành tốt.', time: '1 tuần trước', likes: 8, replies: [{ id: 3, user: 'Nguyen Van A', avatar: 'NVA', comment: 'Cảm ơn bạn đã feedback!', time: '6 ngày trước' }] },
+    { id: 3, user: 'Le Van C', avatar: 'LVC', rating: 5, comment: 'Khóa học tốt nhất mà tôi từng học!', time: '2 tuần trước', likes: 15 },
+  ],
+};
+
+export const learningCourseData = {
+  id: 1,
+  title: 'React & Next.js Full Course',
+  chapters: [
+    { id: 1, title: 'Giới thiệu React', lessons: [{ id: 1, title: 'React là gì?', duration: '10:00', type: 'video', completed: true }, { id: 2, title: 'Cài đặt môi trường', duration: '15:00', type: 'video', completed: true }, { id: 3, title: 'Tài liệu React', duration: '5:00', type: 'document', completed: false }, { id: 4, title: 'Quiz chương 1', duration: '10:00', type: 'quiz', completed: false }] },
+    { id: 2, title: 'JSX và Component', lessons: [{ id: 5, title: 'JSX là gì?', duration: '12:00', type: 'video', completed: false }, { id: 6, title: 'Tạo Component', duration: '18:00', type: 'video', completed: false }, { id: 7, title: 'Props và State', duration: '25:00', type: 'video', completed: false }, { id: 8, title: 'Bài tập chương 2', duration: '30:00', type: 'exercise', completed: false }] },
+    { id: 3, title: 'Hooks trong React', lessons: [{ id: 9, title: 'useState', duration: '20:00', type: 'video', completed: false }, { id: 10, title: 'useEffect', duration: '25:00', type: 'video', completed: false }, { id: 11, title: 'Tài liệu Hooks', duration: '10:00', type: 'document', completed: false }, { id: 12, title: 'Quiz chương 3', duration: '20:00', type: 'quiz', completed: false }] },
+  ],
+  currentLesson: {
+    id: 1,
+    title: 'React là gì?',
+    type: 'video',
+    duration: '10:00',
+    videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+    content: 'React là một thư viện JavaScript mã nguồn mở được phát triển bởi Facebook (Meta). Nó được sử dụng để xây dựng giao diện người dùng (UI) cho các ứng dụng web một cách nhanh chóng và hiệu quả. React sử dụng mô hình component-based, cho phép chia nhỏ giao diện thành các phần độc lập có thể tái sử dụng.',
+    notes: [{ id: 1, timestamp: '0:30', content: 'Giới thiệu về React' }, { id: 2, timestamp: '2:15', content: 'Tại sao nên dùng React?' }, { id: 3, timestamp: '5:00', content: 'Virtual DOM là gì?' }],
+    documents: [{ id: 1, title: 'React Documentation', size: '2.5 MB' }, { id: 2, title: 'Getting Started Guide', size: '1.2 MB' }],
+    quiz: { questions: [{ id: 1, question: 'React được phát triển bởi ai?', options: ['Google', 'Facebook', 'Microsoft', 'Apple'], correct: 1 }, { id: 2, question: 'React sử dụng mô hình nào?', options: ['Object-Oriented', 'Component-based', 'Functional', 'Procedural'], correct: 1 }] },
+    comments: [
+      { id: 1, user: 'Nguyen Van A', avatar: 'NVA', content: 'Bài giảng rất dễ hiểu, cảm ơn thầy!', time: '2 giờ trước', replies: [{ id: 2, user: 'Tran Thi B', avatar: 'TTB', content: 'Đồng ý, em cũng thấy dễ hiểu lắm!', time: '1 giờ trước' }] },
+      { id: 3, user: 'Le Van C', avatar: 'LVC', content: 'Cho em hỏi Virtual DOM khác gì Real DOM?', time: '30 phút trước' },
+    ],
+  },
+};
+
+export const learningQuizHistory = [
+  { id: 1, date: '2024-01-15', score: 8, total: 10, time: '15 phút' },
+  { id: 2, date: '2024-01-10', score: 6, total: 10, time: '20 phút' },
 ];
 
 // ============================================
@@ -476,4 +797,3 @@ export const certificates: Certificate[] = [
 // 19. lam_bai (quiz_attempts) - id, quiz_id, nguoi_dung_id, diem, ngay_lam
 // 20. bai_tap (assignments) - id, bai_hoc_id, tieu_de, mo_ta, bat_buoc, han_nop
 // 21. nop_bai (assignment_submissions) - id, bai_tap_id, nguoi_dung_id, noi_dung, file_dinh_kem, diem, nhan_xet, ngay_nop
-// 22. chung_chi (certificates) - id, nguoi_dung_id, khoa_hoc_id, ngay_cap, ma_chung_chi

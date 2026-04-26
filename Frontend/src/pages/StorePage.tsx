@@ -3,36 +3,7 @@ import { Link } from 'react-router-dom';
 import { Grid, List, Store, ShoppingCart } from 'lucide-react';
 import { Card, Button, Badge, Avatar, SearchInput, Select, Pagination, EmptyState } from '../components/common';
 import { useCart } from '../contexts/CartContext';
-
-const courses = [
-  { id: 1, title: 'React & Next.js Full Course', instructor: 'Nguyen Van A', price: 699000, rating: 4.8, students: 1250, thumbnail: 'https://picsum.photos/seed/react/300/200', category: 'programming', level: 'Nâng cao' },
-  { id: 2, title: 'TypeScript Fundamentals', instructor: 'Tran Thi B', price: 499000, rating: 4.9, students: 890, thumbnail: 'https://picsum.photos/seed/ts/300/200', category: 'programming', level: 'Cơ bản' },
-  { id: 3, title: 'UI/UX Design Master', instructor: 'Le Thi C', price: 599000, rating: 4.7, students: 2100, thumbnail: 'https://picsum.photos/seed/ux/300/200', category: 'design', level: 'Trung cấp' },
-  { id: 4, title: 'Digital Marketing 2024', instructor: 'Pham Van D', price: 449000, rating: 4.6, students: 1560, thumbnail: 'https://picsum.photos/seed/marketing/300/200', category: 'marketing', level: 'Cơ bản' },
-  { id: 5, title: 'Python for Data Science', instructor: 'Nguyen Thi E', price: 799000, rating: 4.8, students: 980, thumbnail: 'https://picsum.photos/seed/python/300/200', category: 'programming', level: 'Nâng cao' },
-  { id: 6, title: 'Business Strategy', instructor: 'Tran Van F', price: 549000, rating: 4.5, students: 720, thumbnail: 'https://picsum.photos/seed/business/300/200', category: 'business', level: 'Trung cấp' },
-  { id: 7, title: 'Vue.js 3 Complete Guide', instructor: 'Hoang Van G', price: 599000, rating: 4.7, students: 650, thumbnail: 'https://picsum.photos/seed/vue/300/200', category: 'programming', level: 'Trung cấp' },
-  { id: 8, title: 'Figma for Beginners', instructor: 'Nguyen Thi H', price: 399000, rating: 4.9, students: 1800, thumbnail: 'https://picsum.photos/seed/figma/300/200', category: 'design', level: 'Cơ bản' },
-  { id: 9, title: 'AWS Cloud Practitioner', instructor: 'Le Van I', price: 899000, rating: 4.6, students: 420, thumbnail: 'https://picsum.photos/seed/aws/300/200', category: 'programming', level: 'Nâng cao' },
-  { id: 10, title: 'Content Marketing SEO', instructor: 'Tran Thi K', price: 349000, rating: 4.4, students: 920, thumbnail: 'https://picsum.photos/seed/seo/300/200', category: 'marketing', level: 'Cơ bản' },
-  { id: 11, title: 'Financial Analysis', instructor: 'Pham Van L', price: 649000, rating: 4.5, students: 380, thumbnail: 'https://picsum.photos/seed/finance/300/200', category: 'business', level: 'Nâng cao' },
-  { id: 12, title: 'Flutter Mobile Development', instructor: 'Nguyen Van M', price: 749000, rating: 4.8, students: 560, thumbnail: 'https://picsum.photos/seed/flutter/300/200', category: 'programming', level: 'Trung cấp' },
-];
-
-const categories = [
-  { value: '', label: 'Tất cả danh mục' },
-  { value: 'programming', label: 'Lập trình' },
-  { value: 'design', label: 'Thiết kế' },
-  { value: 'marketing', label: 'Marketing' },
-  { value: 'business', label: 'Kinh doanh' },
-];
-
-const levels = [
-  { value: '', label: 'Tất cả cấp độ' },
-  { value: 'basic', label: 'Cơ bản' },
-  { value: 'intermediate', label: 'Trung cấp' },
-  { value: 'advanced', label: 'Nâng cao' },
-];
+import { storeCategories as categories, storeCourses as courses, storeLevels as levels } from '../mockData';
 
 export const StorePage: React.FC = () => {
   const [search, setSearch] = useState('');

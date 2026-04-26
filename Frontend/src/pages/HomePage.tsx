@@ -22,40 +22,11 @@ import {
   Rocket
 } from 'lucide-react';
 import { Button, Card, Avatar, Badge, Input } from '../components/common';
+import { homeBenefits, homeCategories, homeDemoCourses, homeReviews, homeStats } from '../mockData';
 
-const demoCourses = [
-  { id: 1, title: 'React & Next.js Full Course', instructor: 'Nguyen Van A', price: 699000, rating: 4.8, students: 1250, thumbnail: 'https://picsum.photos/seed/react/300/200', level: 'Trung cấp', duration: '40 giờ' },
-  { id: 2, title: 'TypeScript Fundamentals', instructor: 'Tran Thi B', price: 499000, rating: 4.9, students: 890, thumbnail: 'https://picsum.photos/seed/ts/300/200', level: 'Cơ bản', duration: '20 giờ' },
-  { id: 3, title: 'Node.js Backend Development', instructor: 'Le Van C', price: 799000, rating: 4.7, students: 2100, thumbnail: 'https://picsum.photos/seed/node/300/200', level: 'Nâng cao', duration: '50 giờ' },
-  { id: 4, title: 'Python for Data Science', instructor: 'Pham Thi D', price: 599000, rating: 4.8, students: 1560, thumbnail: 'https://picsum.photos/seed/python/300/200', level: 'Trung cấp', duration: '35 giờ' },
-];
-
-const reviews = [
-  { id: 1, name: 'Nguyễn Minh Khoa', avatar: 'NMK', rating: 5, comment: 'Khóa học tuyệt vời! Giảng viên dạy rất dễ hiểu, có doodle style vui vẻ. Đã học xong và apply được vào công việc.', course: 'React & Next.js' },
-  { id: 2, name: 'Trần Thị Hương', avatar: 'TTH', rating: 5, comment: 'Giao diện đẹp, dễ sử dụng. Đặc biệt thích phần bài tập thực hành, giúp mình cải thiện kỹ năng nhanh chóng.', course: 'TypeScript' },
-  { id: 3, name: 'Lê Đình Phong', avatar: 'LDP', rating: 4, comment: 'Nội dung chất lượng, có cả quiz và assignment. Free trial 7 ngày rất hữu ích để trải nghiệm trước khi mua.', course: 'Node.js' },
-];
-
-const benefits = [
-  { icon: Zap, title: 'Học nhanh', desc: 'Nội dung ngắn gọn, dễ hiểu' },
-  { icon: Clock, title: 'Mọi lúc', desc: 'Truy cập không giới hạn 24/7' },
-  { icon: BadgeCheck, title: 'Chứng nhận', desc: 'Nhận chứng chỉ khi hoàn thành' },
-  { icon: PlayCircle, title: 'Dùng thử', desc: 'Trải nghiệm miễn phí 7 ngày' },
-];
-
-const stats = [
-  { icon: Users, value: '10,000+', label: 'Học viên' },
-  { icon: BookOpen, value: '200+', label: 'Khóa học' },
-  { icon: Award, value: '50+', label: 'Giảng viên' },
-  { icon: Star, value: '4.8', label: 'Đánh giá' },
-];
-
-const categories = [
-  { id: 'programming', name: 'Lập trình', icon: Code, count: 45, color: 'bg-[#E8F6FC]' },
-  { id: 'design', name: 'Thiết kế', icon: Palette, count: 28, color: 'bg-[#FEF3C7]' },
-  { id: 'marketing', name: 'Marketing', icon: TrendingUp, count: 32, color: 'bg-[#ECFDF5]' },
-  { id: 'business', name: 'Kinh doanh', icon: Book, count: 22, color: 'bg-[#F3E8FF]' },
-];
+const benefitIcons = [Zap, Clock, BadgeCheck, PlayCircle];
+const statIcons = [Users, BookOpen, Award, Star];
+const categoryIcons = [Code, Palette, TrendingUp, Book];
 
 export const HomePage: React.FC = () => {
   const [registerEmail, setRegisterEmail] = useState('');
@@ -95,12 +66,14 @@ export const HomePage: React.FC = () => {
 
           {/* Benefits Pills */}
           <div className="flex flex-wrap justify-center gap-3 mb-10">
-            {benefits.map((benefit, index) => (
+            {homeBenefits.map((benefit, index) => {
+              const Icon = benefitIcons[index];
+              return (
               <div key={index} className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-full border border-white/20">
-                <benefit.icon className="w-4 h-4 text-[#49B6E5]" />
+                <Icon className="w-4 h-4 text-[#49B6E5]" />
                 <span className="font-['Comfortaa', cursive] text-sm text-white">{benefit.title}</span>
               </div>
-            ))}
+            )})}
           </div>
 
           {/* CTA Buttons */}
@@ -121,15 +94,18 @@ export const HomePage: React.FC = () => {
 
           {/* Stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto">
-            {stats.map((stat, index) => (
-              <div key={index} className="text-center">
-                <div className="w-12 h-12 mx-auto mb-2 bg-white/10 rounded-full flex items-center justify-center">
-                  <stat.icon className="w-6 h-6 text-[#49B6E5]" />
+            {homeStats.map((stat, index) => {
+              const Icon = statIcons[index];
+              return (
+                <div key={index} className="text-center">
+                  <div className="w-12 h-12 mx-auto mb-2 bg-white/10 rounded-full flex items-center justify-center">
+                    <Icon className="w-6 h-6 text-[#49B6E5]" />
+                  </div>
+                  <div className="font-['Comfortaa', cursive] text-2xl md:text-3xl font-bold text-white">{stat.value}</div>
+                  <div className="font-['Comfortaa', cursive] text-xs md:text-sm text-white/70">{stat.label}</div>
                 </div>
-                <div className="font-['Comfortaa', cursive] text-2xl md:text-3xl font-bold text-white">{stat.value}</div>
-                <div className="font-['Comfortaa', cursive] text-xs md:text-sm text-white/70">{stat.label}</div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -178,7 +154,7 @@ export const HomePage: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {demoCourses.map((course) => (
+            {homeDemoCourses.map((course) => (
               <Card key={course.id} hoverable className="overflow-hidden p-0">
                 <div className="relative">
                   <img 
@@ -225,17 +201,20 @@ export const HomePage: React.FC = () => {
           Danh mục khóa học
         </h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {categories.map((cat) => (
-            <Link key={cat.id} to={`/store?category=${cat.id}`}>
-              <Card hoverable className="text-center py-6">
-                <div className={`w-14 h-14 mx-auto mb-3 ${cat.color} rounded-full flex items-center justify-center`}>
-                  <cat.icon className="w-7 h-7 text-[#263D5B]" />
-                </div>
-                <h3 className="font-['Comfortaa', cursive] text-lg text-[#263D5B] mb-1">{cat.name}</h3>
-                <span className="font-['Comfortaa', cursive] text-sm text-[#6B7280]">{cat.count} khóa học</span>
-              </Card>
-            </Link>
-          ))}
+          {homeCategories.map((cat, index) => {
+            const Icon = categoryIcons[index];
+            return (
+              <Link key={cat.id} to={`/store?category=${cat.id}`}>
+                <Card hoverable className="text-center py-6">
+                  <div className={`w-14 h-14 mx-auto mb-3 ${cat.color} rounded-full flex items-center justify-center`}>
+                    <Icon className="w-7 h-7 text-[#263D5B]" />
+                  </div>
+                  <h3 className="font-['Comfortaa', cursive] text-lg text-[#263D5B] mb-1">{cat.name}</h3>
+                  <span className="font-['Comfortaa', cursive] text-sm text-[#6B7280]">{cat.count} khóa học</span>
+                </Card>
+              </Link>
+            );
+          })}
         </div>
       </section>
 
@@ -251,7 +230,7 @@ export const HomePage: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {reviews.map((review) => (
+            {homeReviews.map((review) => (
               <Card key={review.id} hoverable className="relative">
                 <div className="absolute -top-3 left-4">
                   <div className="bg-[#FFFBEB] border-2 border-[#D97706] rounded-full px-3 py-1 flex items-center gap-1">

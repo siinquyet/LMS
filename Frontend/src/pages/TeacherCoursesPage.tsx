@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Edit2, Trash2, BookOpen, Users, Tag, X, Save, ChevronRight, Play, FileText, Upload, File, Pill } from 'lucide-react';
 import { Card, Button, Badge, SearchInput, Modal, Input, Select, Textarea } from '../components/common';
+import { teacherCourses as mockCourses } from '../mockData';
 
 interface QuizQuestion {
   id: number;
@@ -50,95 +51,17 @@ interface Course {
   title: string;
   description: string;
   price: number;
-  originalPrice: number;
   thumbnail: string;
   category: string;
   level: string;
   duration: string;
-  status: 'draft' | 'completed';
+  status: 'draft' | 'pending' | 'approved' | 'rejected' | 'completed';
   students: number;
   rating: number;
   chapters: Chapter[];
   requirements: string[];
   whatYouLearn: string[];
 }
-
-const mockCourses: Course[] = [
-  { 
-    id: 1, 
-    title: 'React & Next.js Full Course', 
-    description: 'Học React từ cơ bản đến nâng cao', 
-    price: 699000, 
-    originalPrice: 999000, 
-    thumbnail: 'https://picsum.photos/seed/react/300/200', 
-    category: 'programming', 
-    level: 'Nâng cao', 
-    duration: '40 giờ', 
-    status: 'completed', 
-    students: 1250, 
-    rating: 4.8, 
-    chapters: [
-      {
-        id: 1,
-        title: 'Chương 1: React Cơ bản',
-        order: 1,
-        videos: [
-          {
-            id: 1,
-            title: 'Giới thiệu React',
-            description: 'Tổng quan về React và cách cài đặt',
-            videoUrl: 'https://example.com/video1.mp4',
-            duration: '15:30',
-            order: 1,
-            freePreview: true,
-            documents: [
-              { id: 1, title: 'Slide bài giảng', fileUrl: '#', fileType: 'PDF' },
-              { id: 2, title: 'Mã nguồn mẫu', fileUrl: '#', fileType: 'ZIP' }
-            ],
-            exercises: [
-              { id: 1, title: 'Quiz React cơ bản', description: 'Kiểm tra kiến thức React', type: 'quiz', questions: [
-                { id: 1, question: 'React là gì?', options: [{ id: 1, text: 'Framework' }, { id: 2, text: 'Library' }, { id: 3, text: 'Ngôn ngữ' }], correctOptionId: 1 }
-              ]}
-            ]
-          },
-          {
-            id: 2,
-            title: 'Component trong React',
-            description: 'Tìm hiểu về Component',
-            videoUrl: 'https://example.com/video2.mp4',
-            duration: '20:00',
-            order: 2,
-            freePreview: false,
-            documents: [],
-            exercises: []
-          }
-        ]
-      },
-      {
-        id: 2,
-        title: 'Chương 2: Next.js Nâng cao',
-        order: 2,
-        videos: [
-          {
-            id: 3,
-            title: 'Server Components',
-            description: 'Tìm hiểu về Server Components trong Next.js',
-            videoUrl: 'https://example.com/video3.mp4',
-            duration: '25:00',
-            order: 1,
-            freePreview: false,
-            documents: [
-              { id: 3, title: 'Tài liệu Next.js', fileUrl: '#', fileType: 'PDF' }
-            ],
-            exercises: []
-          }
-        ]
-      }
-    ]
-  },
-  { id: 2, title: 'TypeScript Fundamentals', description: 'TypeScript cho người mới', price: 499000, originalPrice: 799000, thumbnail: 'https://picsum.photos/seed/ts/300/200', category: 'programming', level: 'Cơ bản', duration: '20 giờ', status: 'pending', students: 0, rating: 0, chapters: [] },
-  { id: 3, title: 'Node.js Backend', description: 'Xây dựng API', price: 799000, originalPrice: 1099000, thumbnail: 'https://picsum.photos/seed/node/300/200', category: 'programming', level: 'Trung cấp', duration: '35 giờ', status: 'draft', students: 0, rating: 0, chapters: [] },
-];
 
 const categories = [
   { value: 'programming', label: 'Lập trình' },
@@ -155,10 +78,15 @@ const levels = [
 
 const statusLabels = {
   draft: { label: 'Bản nháp', color: 'default' as const },
+  pending: { label: 'Chờ duyệt', color: 'warning' as const },
+  approved: { label: 'Đã duyệt', color: 'success' as const },
+  rejected: { label: 'Từ chối', color: 'danger' as const },
   completed: { label: 'Hoàn thành', color: 'success' as const },
 };
 
-const initialCourse: Partial<Course> = { title: '', description: '', price: 0, originalPrice: 0, thumbnail: '', category: 'programming', level: 'Cơ bản', duration: '0 giờ', status: 'draft', chapters: [], requirements: [], whatYouLearn: [] };
+const getStatusLabel = (status: string) => statusLabels[status as keyof typeof statusLabels] || { label: status, color: 'default' as const };
+
+const initialCourse: Partial<Course> = { title: '', description: '', price: 0, thumbnail: '', category: 'programming', level: 'Cơ bản', duration: '0 giờ', status: 'draft', chapters: [], requirements: [], whatYouLearn: [] };
 
 export const TeacherCoursesPage: React.FC = () => {
   const navigate = useNavigate();
@@ -170,8 +98,6 @@ export const TeacherCoursesPage: React.FC = () => {
   const [editCourse, setEditCourse] = useState<Partial<Course>>(initialCourse);
   const [isEditing, setIsEditing] = useState(false);
   const [delConfirm, setDelConfirm] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<'chapters' | 'settings'>('chapters');
-
   // Chapter & Video states
   const [chapterModalOpen, setChapterModalOpen] = useState(false);
   const [videoModalOpen, setVideoModalOpen] = useState(false);
@@ -196,7 +122,7 @@ export const TeacherCoursesPage: React.FC = () => {
   const saveCourse = () => {
     if (!editCourse.title || !editCourse.price) return;
     if (isEditing && editCourse.id) setCourses(prev => prev.map(c => c.id === editCourse.id ? { ...c, ...editCourse } as Course : c));
-    else setCourses(prev => [...prev, { id: Date.now(), title: editCourse.title || '', description: editCourse.description || '', price: editCourse.price || 0, originalPrice: editCourse.originalPrice || editCourse.price || 0, thumbnail: editCourse.thumbnail || '', category: editCourse.category || 'programming', level: editCourse.level || 'Cơ bản', duration: editCourse.duration || '0 giờ', status: editCourse.status || 'draft', students: 0, rating: 0, chapters: [] }]);
+    else setCourses(prev => [...prev, { id: Date.now(), title: editCourse.title || '', description: editCourse.description || '', price: editCourse.price || 0, thumbnail: editCourse.thumbnail || '', category: editCourse.category || 'programming', level: editCourse.level || 'Cơ bản', duration: editCourse.duration || '0 giờ', status: editCourse.status || 'draft', students: 0, rating: 0, chapters: [] }]);
     setCourseModalOpen(false);
   };
   const delCourse = (id: number) => { setCourses(prev => prev.filter(c => c.id !== id)); setDelConfirm(null); };
@@ -321,7 +247,7 @@ export const TeacherCoursesPage: React.FC = () => {
         <Card className="mb-4">
           <div className="flex gap-4">
             <SearchInput value={search} onChange={setSearch} placeholder="Tìm khóa học..." className="flex-1" />
-            <Select options={[{ value: '', label: 'Tất cả' }, { value: 'draft', label: 'Bản nháp' }, { value: 'completed', label: 'Hoàn thành' }]} value={statusFilter} onChange={setStatusFilter} className="w-40" />
+            <Select options={[{ value: '', label: 'Tất cả' }, { value: 'draft', label: 'Bản nháp' }, { value: 'pending', label: 'Chờ duyệt' }, { value: 'approved', label: 'Đã duyệt' }, { value: 'rejected', label: 'Từ chối' }, { value: 'completed', label: 'Hoàn thành' }]} value={statusFilter} onChange={setStatusFilter} className="w-40" />
           </div>
         </Card>
 
@@ -331,7 +257,7 @@ export const TeacherCoursesPage: React.FC = () => {
           {filtered.map(course => (
             <Card key={course.id} className="flex flex-col">
               <img src={course.thumbnail} alt={course.title} className="w-full h-32 object-cover rounded-lg mb-3" />
-              <Badge variant={statusLabels[course.status].color} className="self-start mb-2">{statusLabels[course.status].label}</Badge>
+              <Badge variant={getStatusLabel(course.status).color} className="self-start mb-2">{getStatusLabel(course.status).label}</Badge>
               <h3 className="font-['Comfortaa', cursive] text-lg mb-1">{course.title}</h3>
               <p className="text-sm text-gray-600 mb-2 line-clamp-2">{course.description}</p>
               <div className="flex gap-4 text-sm text-gray-600 mb-3">
@@ -370,10 +296,7 @@ export const TeacherCoursesPage: React.FC = () => {
                 rows={3} 
                 placeholder="Xây dựng ứng dụng React&#10;Quản lý state với Redux"
               />
-              <div className="grid grid-cols-2 gap-3">
-                <Input label="Giá *" type="number" value={editCourse.price || ''} onChange={e => setEditCourse({ ...editCourse, price: +e.target.value })} placeholder="0" />
-                <Input label="Giá gốc" type="number" value={editCourse.originalPrice || ''} onChange={e => setEditCourse({ ...editCourse, originalPrice: +e.target.value })} placeholder="0" />
-              </div>
+              <Input label="Giá *" type="number" value={editCourse.price || ''} onChange={e => setEditCourse({ ...editCourse, price: +e.target.value })} placeholder="0" />
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
                 <label className="text-sm font-medium text-[#263D5B]">Ảnh khóa học</label>
@@ -411,7 +334,7 @@ export const TeacherCoursesPage: React.FC = () => {
                 <Select label="Danh mục" options={categories} value={editCourse.category || ''} onChange={e => setEditCourse({ ...editCourse, category: e.target.value })} />
                 <Select label="Cấp độ" options={levels} value={editCourse.level || ''} onChange={e => setEditCourse({ ...editCourse, level: e.target.value })} />
               </div>
-              {isEditing && <Select label="Trạng thái" options={[{ value: 'draft', label: 'Bản nháp' }, { value: 'completed', label: 'Hoàn thành' }]} value={editCourse.status || ''} onChange={e => setEditCourse({ ...editCourse, status: e.target.value as Course['status'] })} />}
+               {isEditing && <Select label="Trạng thái" options={[{ value: 'draft', label: 'Bản nháp' }, { value: 'pending', label: 'Chờ duyệt' }, { value: 'approved', label: 'Đã duyệt' }, { value: 'rejected', label: 'Từ chối' }, { value: 'completed', label: 'Hoàn thành' }]} value={editCourse.status || ''} onChange={e => setEditCourse({ ...editCourse, status: e.target.value as Course['status'] })} />}
               <div className="flex gap-2 pt-3"><Button onClick={saveCourse}><Save className="w-4 h-4" />Lưu</Button><Button variant="secondary" onClick={() => setCourseModalOpen(false)}>Hủy</Button></div>
             </div>
           </div>
@@ -428,17 +351,11 @@ export const TeacherCoursesPage: React.FC = () => {
       <div className="flex items-center gap-4 mb-6">
         <Button size="sm" variant="secondary" onClick={() => setSelectedCourse(null)}>← Quay lại</Button>
         <h1 className="font-['Comfortaa', cursive] text-2xl text-[#263D5B]">{currentCourse.title}</h1>
-        <Badge variant={statusLabels[currentCourse.status].color}>{statusLabels[currentCourse.status].label}</Badge>
+        <Badge variant={getStatusLabel(currentCourse.status).color}>{getStatusLabel(currentCourse.status).label}</Badge>
       </div>
 
-      <div className="flex gap-1 mb-6 bg-white p-1 rounded-lg border-2 border-[#263D5B] w-fit">
-        <button type="button" onClick={() => setActiveTab('chapters')} className={`px-4 py-2 rounded-md font-['Comfortaa', cursive] text-sm ${activeTab === 'chapters' ? 'bg-[#49B6E5] text-white' : 'text-[#263D5B] hover:bg-gray-100'}`}>Chương trình</button>
-        <button type="button" onClick={() => setActiveTab('settings')} className={`px-4 py-2 rounded-md font-['Comfortaa', cursive] text-sm ${activeTab === 'settings' ? 'bg-[#49B6E5] text-white' : 'text-[#263D5B] hover:bg-gray-100'}`}>Cài đặt</button>
-      </div>
-
-      {activeTab === 'chapters' && (
-        <div className="space-y-4">
-          <Card>
+      <div className="space-y-4">
+        <Card>
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-['Comfortaa', cursive] text-xl">Chương học</h2>
               <Button size="sm" variant="secondary" onClick={() => { setEditCh({}); setChapterModalOpen(true); }}><Plus className="w-4 h-4" /> Thêm chương</Button>
@@ -635,21 +552,8 @@ export const TeacherCoursesPage: React.FC = () => {
                 ))}
               </div>
             )}
-          </Card>
-        </div>
-      )}
-
-      {activeTab === 'settings' && (
-        <Card>
-          <h2 className="font-['Comfortaa', cursive] text-xl mb-4">Thông tin khóa học</h2>
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Tên khóa học" value={currentCourse.title} disabled />
-            <Input label="Giá" value={currentCourse.price} disabled />
-            <Input label="Danh mục" value={currentCourse.category} disabled />
-            <Input label="Cấp độ" value={currentCourse.level} disabled />
-          </div>
         </Card>
-      )}
+      </div>
 
       {/* Chapter Modal */}
       <Modal open={chapterModalOpen} onClose={() => setChapterModalOpen(false)}>

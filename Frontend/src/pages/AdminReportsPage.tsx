@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Check, X, Search, TrendingUp } from 'lucide-react';
 import { Card, Badge } from '../components/common';
+import { adminMonthRevenue, adminOrders } from '../mockData';
 
 interface Order {
   id: number;
@@ -11,27 +12,7 @@ interface Order {
   date: string;
 }
 
-const mockOrders: Order[] = [
-  { id: 1, user: 'Nguyễn Văn A', course: 'React & Next.js', amount: 699000, status: 'success', date: '2024-01-15' },
-  { id: 2, user: 'Trần Thị B', course: 'TypeScript', amount: 499000, status: 'success', date: '2024-02-14' },
-  { id: 3, user: 'Lê Văn C', course: 'Node.js', amount: 799000, status: 'success', date: '2024-03-13' },
-  { id: 4, user: 'Phạm Thị D', course: 'React & Next.js', amount: 699000, status: 'success', date: '2024-04-12' },
-  { id: 5, user: 'Hoàng Văn E', course: 'Python', amount: 599000, status: 'success', date: '2024-05-10' },
-  { id: 6, user: 'Nguyễn Thị F', course: 'Vue.js', amount: 549000, status: 'success', date: '2024-06-08' },
-  { id: 7, user: 'Trần Văn G', course: 'SQL', amount: 449000, status: 'success', date: '2024-07-05' },
-];
-
-const monthRevenue = [
-  { month: 'T1', revenue: 12500000 },
-  { month: 'T2', revenue: 18200000 },
-  { month: 'T3', revenue: 15800000 },
-  { month: 'T4', revenue: 22100000 },
-  { month: 'T5', revenue: 28500000 },
-  { month: 'T6', revenue: 52400000 },
-  { month: 'T7', revenue: 34950000 },
-];
-
-const maxRevenue = Math.max(...monthRevenue.map(m => m.revenue));
+const maxRevenue = Math.max(...adminMonthRevenue.map(m => m.revenue));
 
 const formatPrice = (price: number) => {
   if (price >= 1000000) {
@@ -50,7 +31,7 @@ export const AdminReportsPage: React.FC = () => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
-  const filteredOrders = mockOrders.filter(o => {
+  const filteredOrders = adminOrders.filter(o => {
     const matchesSearch = o.user.toLowerCase().includes(searchQuery.toLowerCase()) ||
       o.course.toLowerCase().includes(searchQuery.toLowerCase());
     
@@ -62,8 +43,8 @@ export const AdminReportsPage: React.FC = () => {
   });
 
   const totalRevenue = filteredOrders.reduce((sum, o) => sum + o.amount, 0);
-  const currentMonthRevenue = monthRevenue.find(m => m.month === 'T7')?.revenue || 0;
-  const prevMonthRevenue = monthRevenue.find(m => m.month === 'T6')?.revenue || 1;
+  const currentMonthRevenue = adminMonthRevenue.find(m => m.month === 'T7')?.revenue || 0;
+  const prevMonthRevenue = adminMonthRevenue.find(m => m.month === 'T6')?.revenue || 1;
   const percentChange = ((currentMonthRevenue - prevMonthRevenue) / prevMonthRevenue * 100).toFixed(0);
 
   return (
@@ -84,7 +65,7 @@ export const AdminReportsPage: React.FC = () => {
             </span>
           </div>
           <div className="flex items-end gap-2 h-40">
-            {monthRevenue.map((item) => (
+            {adminMonthRevenue.map((item) => (
               <div key={item.month} className="flex-1 flex flex-col items-center gap-2">
                 <div 
                   className="w-full bg-[#49B6E5] rounded-t-md hover:bg-[#3aa8d4] transition-colors" 
@@ -122,7 +103,7 @@ export const AdminReportsPage: React.FC = () => {
           <div className="flex items-center justify-between mb-2">
             <span className="font-['Comfortaa', cursive] text-gray-500 text-sm">Tổng đơn hàng</span>
           </div>
-          <p className="font-['Comfortaa', cursive] text-2xl text-[#263D5B]">{mockOrders.length}</p>
+          <p className="font-['Comfortaa', cursive] text-2xl text-[#263D5B]">{adminOrders.length}</p>
           <p className="font-['Comfortaa', cursive] text-sm text-gray-500">Đơn hàng thành công</p>
         </Card>
       </div>

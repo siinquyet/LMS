@@ -1,25 +1,16 @@
 import { useState } from 'react';
-import { Search, TrendingUp } from 'lucide-react';
-import { Card, Badge } from '../components/common';
+import { RotateCcw, Search, TrendingUp } from 'lucide-react';
+import { Card, Badge, Button } from '../components/common';
+import { adminOrders } from '../mockData';
 
 interface Order {
   id: number;
   user: string;
   course: string;
   amount: number;
-  status: 'success';
+  status: 'success' | 'refunded';
   date: string;
 }
-
-const mockOrders: Order[] = [
-  { id: 1, user: 'Nguyễn Văn A', course: 'React & Next.js', amount: 699000, status: 'success', date: '2024-07-15' },
-  { id: 2, user: 'Trần Thị B', course: 'TypeScript', amount: 499000, status: 'success', date: '2024-07-14' },
-  { id: 3, user: 'Lê Văn C', course: 'Node.js', amount: 799000, status: 'success', date: '2024-07-13' },
-  { id: 4, user: 'Phạm Thị D', course: 'React & Next.js', amount: 699000, status: 'success', date: '2024-06-12' },
-  { id: 5, user: 'Hoàng Văn E', course: 'Python', amount: 599000, status: 'success', date: '2024-06-10' },
-  { id: 6, user: 'Nguyễn Thị F', course: 'Vue.js', amount: 549000, status: 'success', date: '2024-05-08' },
-  { id: 7, user: 'Trần Văn G', course: 'SQL', amount: 449000, status: 'success', date: '2024-05-05' },
-];
 
 const formatPrice = (price: number) => {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(price);
@@ -31,11 +22,12 @@ const formatDate = (dateStr: string) => {
 };
 
 export const AdminOrdersPage: React.FC = () => {
+  const [orders, setOrders] = useState<Order[]>(adminOrders);
   const [searchQuery, setSearchQuery] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
-  const filteredOrders = mockOrders.filter(o => {
+  const filteredOrders = orders.filter(o => {
     const matchesSearch = o.user.toLowerCase().includes(searchQuery.toLowerCase()) ||
       o.course.toLowerCase().includes(searchQuery.toLowerCase());
     
@@ -46,7 +38,12 @@ export const AdminOrdersPage: React.FC = () => {
     return matchesSearch && matchesDate;
   });
 
-  const totalRevenue = filteredOrders.reduce((sum, o) => sum + o.amount, 0);
+  const totalRevenue = filteredOrders.filter((order) => order.status === 'success').reduce((sum, o) => sum + o.amount, 0);
+  const monthlyRevenue = orders.filter((order) => order.status === 'success' && order.date.startsWith('2024-07')).reduce((sum, order) => sum + order.amount, 0);
+
+  const handleRefund = (id: number) => {
+    setOrders((current) => current.map((order) => (order.id === id ? { ...order, status: 'refunded' } : order)));
+  };
 
   return (
     <div className="max-w-7xl mx-auto w-full">
@@ -67,8 +64,8 @@ export const AdminOrdersPage: React.FC = () => {
             <TrendingUp className="w-5 h-5 text-green-600" />
             <span className="font-['Comfortaa', cursive] text-gray-500 text-sm">Doanh thu tháng này</span>
           </div>
-          <p className="font-['Comfortaa', cursive] text-2xl text-[#263D5B]">{formatPrice(1495000)}</p>
-          <p className="font-['Comfortaa', cursive] text-sm text-green-600">+8%</p>
+          <p className="font-['Comfortaa', cursive] text-2xl text-[#263D5B]">{formatPrice(monthlyRevenue)}</p>
+          <p className="font-['Comfortaa', cursive] text-sm text-green-600">{orders.filter((order) => order.status === 'refunded').length} đơn đã hoàn</p>
         </Card>
       </div>
 
@@ -109,6 +106,7 @@ export const AdminOrdersPage: React.FC = () => {
                 <th className="text-left py-3 px-4 font-['Comfortaa', cursive] text-gray-500 text-sm">Số tiền</th>
                 <th className="text-left py-3 px-4 font-['Comfortaa', cursive] text-gray-500 text-sm">Trạng thái</th>
                 <th className="text-left py-3 px-4 font-['Comfortaa', cursive] text-gray-500 text-sm">Ngày</th>
+                <th className="text-left py-3 px-4 font-['Comfortaa', cursive] text-gray-500 text-sm">Thao tác</th>
               </tr>
             </thead>
             <tbody>
@@ -119,9 +117,19 @@ export const AdminOrdersPage: React.FC = () => {
                   <td className="py-3 px-4 font-['Comfortaa', cursive] text-gray-600 text-sm">{order.course}</td>
                   <td className="py-3 px-4 font-['Comfortaa', cursive] text-[#263D5B] text-sm">{formatPrice(order.amount)}</td>
                   <td className="py-3 px-4">
-                    <Badge variant="success">Thành công</Badge>
+                    <Badge variant={order.status === 'refunded' ? 'warning' : 'success'}>{order.status === 'refunded' ? 'Đã hoàn tiền' : 'Thành công'}</Badge>
                   </td>
                   <td className="py-3 px-4 font-['Comfortaa', cursive] text-gray-600 text-sm">{formatDate(order.date)}</td>
+                  <td className="py-3 px-4">
+                    {order.status === 'success' ? (
+                      <Button size="sm" variant="outline" onClick={() => handleRefund(order.id)}>
+                        <RotateCcw className="w-4 h-4" />
+                        Hoàn tiền
+                      </Button>
+                    ) : (
+                      <span className="font-['Comfortaa', cursive] text-xs text-gray-400">Đã xử lý</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

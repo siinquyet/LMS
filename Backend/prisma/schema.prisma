@@ -71,7 +71,6 @@ model User {
   forumReplies          ForumReply[]
   quizAttempts          QuizAttempt[]
   assignmentSubmissions AssignmentSubmission[]
-  certificates          Certificate[]
 
   @@map("nguoi_dung")
 }
@@ -109,7 +108,6 @@ model Course {
   enrollments          Enrollment[]
   orderItems           OrderItem[]
   forumTopics          ForumTopic[]
-  certificates         Certificate[]
 
   @@index([instructorId])
   @@index([categoryId])
@@ -347,18 +345,4 @@ model AssignmentSubmission {
   @@unique([assignmentId, userId])
   @@index([userId])
   @@map("nop_bai")
-}
-
-model Certificate {
-  id          Int      @id @default(autoincrement())
-  userId      Int      @map("nguoi_dung_id")
-  courseId    Int      @map("khoa_hoc_id")
-  issuedAt    DateTime @map("ngay_cap")
-  code        String   @unique @map("ma_chung_chi")
-  user        User     @relation(fields: [userId], references: [id])
-  course      Course   @relation(fields: [courseId], references: [id])
-
-  @@unique([userId, courseId])
-  @@index([courseId])
-  @@map("chung_chi")
 }

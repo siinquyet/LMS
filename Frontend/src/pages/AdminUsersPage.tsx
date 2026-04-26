@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Check, X, Search } from 'lucide-react';
 import { Card, Badge, Avatar } from '../components/common';
+import { adminUsers } from '../mockData';
 
 interface UserItem {
   id: number;
@@ -10,12 +11,6 @@ interface UserItem {
   status: 'active' | 'inactive' | 'banned';
   joinedDate: string;
 }
-
-const mockUsers: UserItem[] = [
-  { id: 1, name: 'Nguyễn Văn A', email: 'user@example.com', role: 'hoc_vien', status: 'active', joinedDate: '2024-01-15' },
-  { id: 2, name: 'Trần Thị B', email: 'teacher@example.com', role: 'giang_vien', status: 'active', joinedDate: '2024-02-20' },
-  { id: 3, name: 'Lê Văn C', email: 'levanc@example.com', role: 'hoc_vien', status: 'banned', joinedDate: '2024-03-10' },
-];
 
 const roleLabels: Record<string, string> = {
   hoc_vien: 'Học viên',
@@ -28,7 +23,7 @@ const statusColors: Record<string, 'default' | 'success' | 'warning' | 'danger'>
 };
 
 export const AdminUsersPage: React.FC = () => {
-  const [users, setUsers] = useState(mockUsers);
+  const [users, setUsers] = useState<UserItem[]>(adminUsers);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterRole, setFilterRole] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');

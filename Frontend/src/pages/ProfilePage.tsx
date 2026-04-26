@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { User, Mail, Phone, MapPin, BookOpen, Calendar, Edit, Save, Globe, Linkedin, Briefcase, GraduationCap, Cake } from 'lucide-react';
 import { Button, Avatar, Input, Card, Textarea } from '../components/common';
+import { profileMockEnrolledCourses, profileMockUser } from '../mockData';
 
 interface UserProfile {
   id: number;
@@ -22,35 +23,10 @@ interface UserProfile {
   linkedin?: string;
 }
 
-const mockUser: UserProfile = {
-  id: 1,
-  ten_dang_nhap: 'user',
-  email: 'user@example.com',
-  ho: 'Nguyễn',
-  ten: 'Văn A',
-  so_dien_thoai: '0123456789',
-  dia_chi: 'Hà Nội, Việt Nam',
-  gioi_thieu: 'Yêu thích học lập trình, đặc biệt là React và Node.js',
-  anh_dai_dien: 'NVA',
-  ngay_tham_gia: '2024-01-15',
-  ngay_sinh: '2000-01-01',
-  gioi_tinh: 'Nam',
-  trinh_do: 'Đại học',
-  nghe_nghiep: 'Lập trình viên',
-  facebook: 'https://facebook.com/user',
-  linkedin: 'https://linkedin.com/in/user',
-};
-
-const mockEnrolledCourses = [
-  { id: 1, title: 'React & Next.js Full Course', progress: 75, thumbnail: '' },
-  { id: 2, title: 'TypeScript Fundamentals', progress: 100, thumbnail: '' },
-  { id: 3, title: 'Node.js Backend Development', progress: 45, thumbnail: '' },
-];
-
 export const ProfilePage: React.FC = () => {
-  const [user, setUser] = useState<UserProfile>(mockUser);
+  const [user, setUser] = useState<UserProfile>(profileMockUser);
   const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState(mockUser);
+  const [editForm, setEditForm] = useState(profileMockUser);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 
   const handleSave = () => {
@@ -272,7 +248,7 @@ export const ProfilePage: React.FC = () => {
         <div>
           <h2 className="font-['Comfortaa', cursive] text-xl text-[#263D5B] mb-4">Khóa học của tôi</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {mockEnrolledCourses.map((course) => (
+            {profileMockEnrolledCourses.map((course) => (
               <Card key={course.id} className="p-4">
                 <div className="aspect-video bg-[#263D5B] rounded-[8px] mb-3 flex items-center justify-center">
                   <BookOpen className="w-8 h-8 text-white" />

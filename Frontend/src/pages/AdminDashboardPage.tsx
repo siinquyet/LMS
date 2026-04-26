@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BookOpen, Users, FileText, DollarSign, Check, X, TrendingUp, AlertTriangle, ShoppingCart, UserCheck, Eye, Calendar } from 'lucide-react';
-import { Card, Badge, Avatar } from '../components/common';
+import { AlertTriangle, ArrowUpRight, BookOpen, Check, DollarSign, FileText, ShoppingCart, UserCheck, Users, X } from 'lucide-react';
+import { Badge, Button, Card } from '../components/common';
+import { adminDashboardCourses, adminOrders, adminReports, adminUsers } from '../mockData';
 
 interface Course {
   id: number;
@@ -42,235 +43,253 @@ interface Report {
   createdAt: string;
 }
 
-const mockCourses: Course[] = [
-  { id: 1, title: 'React & Next.js Full Course', instructor: 'Trần Thị B', thumbnail: 'https://picsum.photos/seed/react/300/200', students: 1250, price: 699000, status: 'approved' },
-  { id: 2, title: 'TypeScript Fundamentals', instructor: 'Trần Thị B', thumbnail: 'https://picsum.photos/seed/ts/300/200', students: 890, price: 499000, status: 'approved' },
-  { id: 3, title: 'Node.js Backend', instructor: 'Lê Văn C', thumbnail: 'https://picsum.photos/seed/node/300/200', students: 200, price: 799000, status: 'pending' },
-  { id: 4, title: 'Vue.js Complete', instructor: 'Lê Văn C', thumbnail: 'https://picsum.photos/seed/vue/300/200', students: 0, price: 599000, status: 'draft' },
-];
+const formatPrice = (price: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(price);
 
-const mockUsers: UserItem[] = [
-  { id: 1, name: 'Nguyễn Văn A', email: 'user@example.com', role: 'hoc_vien', status: 'active', joinedDate: '2024-01-15' },
-  { id: 2, name: 'Trần Thị B', email: 'teacher@example.com', role: 'giang_vien', status: 'active', joinedDate: '2024-02-20' },
-  { id: 3, name: 'Lê Văn C', email: 'levanc@example.com', role: 'giang_vien', status: 'active', joinedDate: '2024-02-25' },
-  { id: 4, name: 'Phạm Thị D', email: 'phamt@example.com', role: 'hoc_vien', status: 'banned', joinedDate: '2024-03-10' },
-];
-
-const mockOrders: Order[] = [
-  { id: 1, user: 'Nguyễn Văn A', course: 'React & Next.js', amount: 699000, status: 'success', date: '2024-04-15' },
-  { id: 2, user: 'Trần Thị B', course: 'TypeScript', amount: 499000, status: 'success', date: '2024-04-14' },
-  { id: 3, user: 'Lê Văn C', course: 'Node.js', amount: 799000, status: 'pending', date: '2024-04-14' },
-  { id: 4, user: 'Phạm Thị D', course: 'Vue.js', amount: 599000, status: 'success', date: '2024-04-13' },
-];
-
-const mockReports: Report[] = [
-  { id: 1, reporterId: 1, reporterName: 'Nguyễn Văn A', reportedUserId: 4, reportedUserName: 'Phạm Thị D', reason: 'Spam nội dung không phù hợp', status: 'pending', createdAt: '2024-04-15' },
-  { id: 2, reporterId: 2, reporterName: 'Trần Thị B', reportedUserId: 1, reportedUserName: 'Nguyễn Văn A', reason: 'Quấy rối trong khóa học', status: 'pending', createdAt: '2024-04-14' },
-];
-
-const formatPrice = (price: number) => {
-  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(price);
+const statusMeta = {
+  approved: { label: 'Đã duyệt', variant: 'success' as const },
+  pending: { label: 'Chờ duyệt', variant: 'warning' as const },
+  rejected: { label: 'Từ chối', variant: 'danger' as const },
+  draft: { label: 'Bản nháp', variant: 'default' as const },
+  success: { label: 'Thành công', variant: 'success' as const },
+  failed: { label: 'Thất bại', variant: 'danger' as const },
 };
 
-const statusColors: Record<string, 'default' | 'success' | 'warning' | 'danger'> = {
-  active: 'success', inactive: 'default', banned: 'danger', approved: 'success', pending: 'warning', rejected: 'danger', draft: 'default', success: 'success', failed: 'danger',
-};
+export const AdminDashboardPage = () => {
+  const [courses, setCourses] = useState<Course[]>(adminDashboardCourses);
+  const [users, setUsers] = useState<UserItem[]>(adminUsers);
+  const [orders] = useState<Order[]>(adminOrders.map((order, index) => ({ ...order, status: index === 2 ? 'pending' : order.status })));
+  const [reports, setReports] = useState<Report[]>(adminReports);
 
-interface StatCardProps {
-  title: string;
-  value: string | number;
-  icon: React.ReactNode;
-  color: string;
-  change?: number;
-  link?: string;
-}
+  const pendingCourses = courses.filter((course) => course.status === 'pending');
+  const pendingReports = reports.filter((report) => report.status === 'pending');
+  const pendingOrders = orders.filter((order) => order.status === 'pending');
+  const successOrders = orders.filter((order) => order.status === 'success');
+  const teachers = users.filter((user) => user.role === 'giang_vien');
+  const students = users.filter((user) => user.role === 'hoc_vien');
+  const totalRevenue = successOrders.reduce((sum, order) => sum + order.amount, 0);
+  const monthlyRevenue = successOrders.filter((order) => order.date.startsWith('2024-04')).reduce((sum, order) => sum + order.amount, 0);
 
-const StatCard: React.FC<StatCardProps> = ({ title, value, icon, color, change, link }) => (
-  <Link to={link || '#'} className="block">
-    <Card className="p-6 hover:shadow-lg transition-shadow cursor-pointer">
-      <div className="flex items-center justify-between mb-4">
-        <div className={`p-3 rounded-lg ${color}`}>{icon}</div>
-        {change !== undefined && (
-          <span className={`flex items-center gap-1 text-sm ${change >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-            {change >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingUp className="w-4 h-4 rotate-180" />}
-            {Math.abs(change)}%
-          </span>
-        )}
-      </div>
-      <h3 className="font-['Comfortaa', cursive] text-gray-500 text-sm mb-1">{title}</h3>
-      <p className="font-['Comfortaa', cursive] text-3xl text-[#263D5B] font-bold">{value}</p>
-    </Card>
-  </Link>
-);
+  const recentOrders = useMemo(() => [...orders].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 4), [orders]);
 
-interface QuickActionProps {
-  title: string;
-  description: string;
-  count: number;
-  link: string;
-  icon: React.ReactNode;
-  color: string;
-}
-
-const QuickAction: React.FC<QuickActionProps> = ({ title, description, count, link, icon, color }) => (
-  <Link to={link} className="block">
-    <div className="p-4 border-2 border-[#263D5B] rounded-lg hover:bg-[#263D5B] hover:text-white transition-colors group">
-      <div className="flex items-center gap-4">
-        <div className={`p-3 rounded-lg ${color} group-hover:bg-white group-hover:text-[#263D5B]`}>{icon}</div>
-        <div className="flex-1">
-          <p className="font-['Comfortaa', cursive] font-medium">{title}</p>
-          <p className="font-['Comfortaa', cursive] text-sm opacity-70">{description}</p>
-        </div>
-        <div className="text-right">
-          <span className="font-['Comfortaa', cursive] text-2xl font-bold">{count}</span>
-        </div>
-      </div>
-    </div>
-  </Link>
-);
-
-export const AdminDashboardPage: React.FC = () => {
-  const [courses, setCourses] = useState(mockCourses);
-  const [users, setUsers] = useState(mockUsers);
-  const [orders, setOrders] = useState(mockOrders);
-  const [reports, setReports] = useState(mockReports);
-
-  const pendingCourses = courses.filter(c => c.status === 'pending');
-  const pendingReports = reports.filter(r => r.status === 'pending');
-  const activeUsers = users.filter(u => u.status === 'active');
-  const bannedUsers = users.filter(u => u.status === 'banned');
-  const teachers = users.filter(u => u.role === 'giang_vien');
-  const totalRevenue = orders.filter(o => o.status === 'success').reduce((sum, o) => sum + o.amount, 0);
-  const monthlyRevenue = orders.filter(o => o.status === 'success' && o.date.startsWith('2024-04')).reduce((sum, o) => sum + o.amount, 0);
+  const stats = [
+    { title: 'Tổng khóa học', value: courses.length, icon: <BookOpen className="w-6 h-6" />, color: 'bg-blue-500', change: pendingCourses.length },
+    { title: 'Tổng người dùng', value: users.length, icon: <Users className="w-6 h-6" />, color: 'bg-green-500', change: students.length },
+    { title: 'Giảng viên', value: teachers.length, icon: <UserCheck className="w-6 h-6" />, color: 'bg-purple-500', change: pendingReports.length },
+    { title: 'Doanh thu tháng', value: formatPrice(monthlyRevenue), icon: <DollarSign className="w-6 h-6" />, color: 'bg-yellow-500', change: successOrders.length },
+  ];
 
   const handleApproveCourse = (id: number) => {
-    setCourses(courses.map(c => c.id === id ? { ...c, status: 'approved' } : c));
+    setCourses((current) => current.map((course) => (course.id === id ? { ...course, status: 'approved' } : course)));
   };
 
   const handleRejectCourse = (id: number) => {
-    setCourses(courses.map(c => c.id === id ? { ...c, status: 'rejected' } : c));
+    setCourses((current) => current.map((course) => (course.id === id ? { ...course, status: 'rejected' } : course)));
   };
 
   const handleApproveReport = (id: number) => {
-    const report = reports.find(r => r.id === id);
-    if (report) {
-      setUsers(users.map(u => u.id === report.reportedUserId ? { ...u, status: 'banned' } : u));
-      setReports(reports.map(r => r.id === id ? { ...r, status: 'approved' } : r));
-    }
+    const report = reports.find((item) => item.id === id);
+    if (!report) return;
+
+    setUsers((current) => current.map((user) => (user.id === report.reportedUserId ? { ...user, status: 'banned' } : user)));
+    setReports((current) => current.map((item) => (item.id === id ? { ...item, status: 'approved' } : item)));
   };
 
   const handleRejectReport = (id: number) => {
-    setReports(reports.map(r => r.id === id ? { ...r, status: 'rejected' } : r));
+    setReports((current) => current.map((report) => (report.id === id ? { ...report, status: 'rejected' } : report)));
   };
 
   return (
-    <div className="max-w-7xl mx-auto w-full">
-      <div className="mb-8">
-        <h1 className="font-['Comfortaa', cursive] text-3xl text-[#263D5B]">Tổng quan</h1>
-        <p className="font-['Comfortaa', cursive] text-gray-500 mt-1">Chào mừng quản trị viên! Đây là tổng quan hệ thống.</p>
-      </div>
+    <div className="min-h-screen bg-[#F8F6F3]">
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        <div className="flex items-center justify-between mb-8 gap-4 flex-wrap">
+          <div>
+            <h1 className="font-['Comfortaa', cursive] text-4xl text-[#263D5B]">Tổng quan</h1>
+            <p className="text-gray-600 mt-1">Theo dõi nhanh hệ thống và các mục cần xử lý.</p>
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <Link to="/admin/courses">
+              <Button variant="secondary">
+                <BookOpen className="w-5 h-5" />
+                Quản lý khóa học
+              </Button>
+            </Link>
+            <Link to="/admin/users">
+              <Button variant="secondary">
+                <Users className="w-5 h-5" />
+                Quản lý người dùng
+              </Button>
+            </Link>
+            <Link to="/admin/orders">
+              <Button variant="secondary">
+                <FileText className="w-5 h-5" />
+                Xem đơn hàng
+              </Button>
+            </Link>
+          </div>
+        </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <StatCard title="Tổng khóa học" value={courses.length} icon={<BookOpen className="w-6 h-6" />} color="bg-blue-500" link="/admin/courses" />
-        <StatCard title="Tổng người dùng" value={users.length} icon={<Users className="w-6 h-6" />} color="bg-green-500" link="/admin/users" />
-        <StatCard title="Giảng viên" value={teachers.length} icon={<UserCheck className="w-6 h-6" />} color="bg-purple-500" link="/admin/users" />
-        <StatCard title="Doanh thu" value={formatPrice(totalRevenue)} icon={<DollarSign className="w-6 h-6" />} color="bg-yellow-500" change={18} link="/admin/orders" />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <Card className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-['Comfortaa', cursive] text-xl text-[#263D5B] font-semibold">
-              Cần xử lý
-            </h2>
-          </div>
-          <div className="space-y-3">
-            <QuickAction title="Khóa học chờ duyệt" description="Khóa học mới từ giảng viên" count={pendingCourses.length} link="/admin/courses" icon={<BookOpen className="w-6 h-6" />} color="bg-orange-500" />
-            <QuickAction title="Báo cáo vi phạm" description="Báo cáo từ người dùng" count={pendingReports.length} link="/admin/reports" icon={<AlertTriangle className="w-6 h-6" />} color="bg-red-500" />
-            <QuickAction title="Đơn hàng chờ" description="Đơn hàng chưa thanh toán" count={orders.filter(o => o.status === 'pending').length} link="/admin/orders" icon={<ShoppingCart className="w-6 h-6" />} color="bg-blue-500" />
-          </div>
-        </Card>
-
-        <Card className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-['Comfortaa', cursive] text-xl text-[#263D5B] font-semibold">
-              Thống kê nhanh
-            </h2>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="p-4 bg-gray-50 rounded-lg">
-              <p className="font-['Comfortaa', cursive] text-gray-500 text-sm">Tổng học viên</p>
-              <p className="font-['Comfortaa', cursive] text-2xl text-[#263D5B] font-bold">{users.filter(u => u.role === 'hoc_vien').length}</p>
-            </div>
-            <div className="p-4 bg-gray-50 rounded-lg">
-              <p className="font-['Comfortaa', cursive] text-gray-500 text-sm">User bị cấm</p>
-              <p className="font-['Comfortaa', cursive] text-2xl text-red-500 font-bold">{bannedUsers.length}</p>
-            </div>
-            <div className="p-4 bg-gray-50 rounded-lg">
-              <p className="font-['Comfortaa', cursive] text-gray-500 text-sm">Doanh thu tháng</p>
-              <p className="font-['Comfortaa', cursive] text-2xl text-green-500 font-bold">{formatPrice(monthlyRevenue)}</p>
-            </div>
-            <div className="p-4 bg-gray-50 rounded-lg">
-              <p className="font-['Comfortaa', cursive] text-gray-500 text-sm">Đơn hàng thành công</p>
-              <p className="font-['Comfortaa', cursive] text-2xl text-[#263D5B] font-bold">{orders.filter(o => o.status === 'success').length}</p>
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-['Comfortaa', cursive] text-xl text-[#263D5B] font-semibold">
-              Khóa học chờ duyệt ({pendingCourses.length})
-            </h2>
-            <Link to="/admin/courses" className="font-['Comfortaa', cursive] text-sm text-[#49B6E5] hover:underline">Xem tất cả</Link>
-          </div>
-          <div className="space-y-3">
-            {pendingCourses.length === 0 && <p className="font-['Comfortaa', cursive] text-gray-400 text-center py-4">Không có khóa học chờ duyệt</p>}
-            {pendingCourses.map((course) => (
-              <div key={course.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                <img src={course.thumbnail} alt={course.title} className="w-16 h-10 object-cover rounded" />
-                <div className="flex-1 min-w-0">
-                  <p className="font-['Comfortaa', cursive] text-sm text-[#263D5B] truncate">{course.title}</p>
-                  <p className="font-['Comfortaa', cursive] text-xs text-gray-400">{course.instructor}</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {stats.map((stat) => (
+            <Card key={stat.title} hoverable={false}>
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-gray-600 text-sm mb-1">{stat.title}</p>
+                  <div className="flex items-center gap-2">
+                    <span className="font-['Comfortaa', cursive] text-2xl text-[#263D5B]">{stat.value}</span>
+                    <span className="flex items-center text-sm text-green-600">
+                      <ArrowUpRight className="w-3 h-3" />
+                      {stat.change}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <button type="button" onClick={() => handleApproveCourse(course.id)} className="p-2 bg-green-500 hover:bg-green-600 rounded"><Check className="w-4 h-4 text-white" /></button>
-                  <button type="button" onClick={() => handleRejectCourse(course.id)} className="p-2 bg-red-500 hover:bg-red-600 rounded"><X className="w-4 h-4 text-white" /></button>
+                <div className={`p-3 rounded-lg ${stat.color} text-white`}>
+                  {stat.icon}
                 </div>
               </div>
-            ))}
-          </div>
-        </Card>
+            </Card>
+          ))}
+        </div>
 
-        <Card className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-['Comfortaa', cursive] text-xl text-[#263D5B] font-semibold">
-              Báo cáo vi phạm ({pendingReports.length})
-            </h2>
-            <Link to="/admin/reports" className="font-['Comfortaa', cursive] text-sm text-[#49B6E5] hover:underline">Xem tất cả</Link>
-          </div>
-          <div className="space-y-3">
-            {pendingReports.length === 0 && <p className="font-['Comfortaa', cursive] text-gray-400 text-center py-4">Không có báo cáo</p>}
-            {pendingReports.map((report) => (
-              <div key={report.id} className="p-3 bg-gray-50 rounded-lg">
-                <div className="flex items-start justify-between">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <Card hoverable={false}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-['Comfortaa', cursive] text-xl text-[#263D5B]">Cần xử lý</h3>
+              <span className="text-sm text-gray-500">{pendingCourses.length + pendingReports.length + pendingOrders.length} mục</span>
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-[#E5E1DC]">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-orange-100 text-orange-600"><BookOpen className="w-5 h-5" /></div>
                   <div>
-                    <p className="font-['Comfortaa', cursive] text-sm">
-                      <span className="text-red-500">{report.reportedUserName}</span>
-                    </p>
-                    <p className="font-['Comfortaa', cursive] text-xs text-gray-400 mt-1">{report.reason}</p>
+                    <p className="font-['Comfortaa', cursive] text-sm text-[#263D5B]">Khóa học</p>
+                    <p className="text-sm text-gray-500">Khóa học mới từ giảng viên</p>
+                  </div>
+                </div>
+                <span className="font-['Comfortaa', cursive] text-lg text-[#263D5B]">{pendingCourses.length}</span>
+              </div>
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-[#E5E1DC]">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-red-100 text-red-600"><AlertTriangle className="w-5 h-5" /></div>
+                  <div>
+                    <p className="font-['Comfortaa', cursive] text-sm text-[#263D5B]">Báo cáo vi phạm</p>
+                    <p className="text-sm text-gray-500">Nội dung và tài khoản cần xem xét</p>
+                  </div>
+                </div>
+                <span className="font-['Comfortaa', cursive] text-lg text-[#263D5B]">{pendingReports.length}</span>
+              </div>
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-[#E5E1DC]">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-blue-100 text-blue-600"><ShoppingCart className="w-5 h-5" /></div>
+                  <div>
+                    <p className="font-['Comfortaa', cursive] text-sm text-[#263D5B]">Đơn hàng chờ</p>
+                    <p className="text-sm text-gray-500">Giao dịch chưa hoàn tất</p>
+                  </div>
+                </div>
+                <span className="font-['Comfortaa', cursive] text-lg text-[#263D5B]">{pendingOrders.length}</span>
+              </div>
+            </div>
+          </Card>
+
+          <Card hoverable={false}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-['Comfortaa', cursive] text-xl text-[#263D5B]">Thống kê nhanh</h3>
+              <Link to="/admin/orders" className="text-sm text-[#49B6E5] hover:underline">Xem chi tiết</Link>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 bg-gray-50 rounded-lg border border-[#E5E1DC]">
+                <p className="text-gray-500 text-sm">Tổng học viên</p>
+                <p className="font-['Comfortaa', cursive] text-2xl text-[#263D5B] mt-1">{students.length}</p>
+              </div>
+              <div className="p-4 bg-gray-50 rounded-lg border border-[#E5E1DC]">
+                <p className="text-gray-500 text-sm">Đơn thành công</p>
+                <p className="font-['Comfortaa', cursive] text-2xl text-[#263D5B] mt-1">{successOrders.length}</p>
+              </div>
+              <div className="p-4 bg-gray-50 rounded-lg border border-[#E5E1DC]">
+                <p className="text-gray-500 text-sm">Doanh thu tổng</p>
+                <p className="font-['Comfortaa', cursive] text-xl text-green-600 mt-1">{formatPrice(totalRevenue)}</p>
+              </div>
+              <div className="p-4 bg-gray-50 rounded-lg border border-[#E5E1DC]">
+                <p className="text-gray-500 text-sm">Chờ xử lý</p>
+                <p className="font-['Comfortaa', cursive] text-2xl text-[#263D5B] mt-1">{pendingCourses.length + pendingReports.length + pendingOrders.length}</p>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <Card hoverable={false}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-['Comfortaa', cursive] text-xl text-[#263D5B]">Khóa học</h3>
+              <Link to="/admin/courses" className="text-sm text-[#49B6E5] hover:underline">Xem tất cả</Link>
+            </div>
+            <div className="space-y-3">
+              {pendingCourses.length > 0 ? pendingCourses.map((course) => (
+                <div key={course.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-[#E5E1DC]">
+                  <img src={course.thumbnail} alt={course.title} className="w-20 h-14 object-cover rounded" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="font-['Comfortaa', cursive] text-sm text-[#263D5B] truncate">{course.title}</p>
+                      <Badge variant={statusMeta[course.status].variant}>{statusMeta[course.status].label}</Badge>
+                    </div>
+                    <p className="text-xs text-gray-500">{course.instructor}</p>
+                    <p className="text-xs text-[#49B6E5] mt-1">{formatPrice(course.price)} • {course.students} học viên</p>
                   </div>
                   <div className="flex gap-2">
-                    <button type="button" onClick={() => handleApproveReport(report.id)} className="px-2 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600">Cấm</button>
-                    <button type="button" onClick={() => handleRejectReport(report.id)} className="px-2 py-1 bg-gray-300 text-[#263D5B] rounded text-xs hover:bg-gray-400">Bỏ</button>
+                    <button type="button" onClick={() => handleApproveCourse(course.id)} className="p-2 bg-green-500 hover:bg-green-600 rounded"><Check className="w-4 h-4 text-white" /></button>
+                    <button type="button" onClick={() => handleRejectCourse(course.id)} className="p-2 bg-red-500 hover:bg-red-600 rounded"><X className="w-4 h-4 text-white" /></button>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </Card>
+              )) : <p className="text-center text-gray-500 py-8">Không có khóa học chờ duyệt</p>}
+            </div>
+          </Card>
+
+          <Card hoverable={false}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-['Comfortaa', cursive] text-xl text-[#263D5B]">Báo cáo vi phạm</h3>
+              <Link to="/admin/reports" className="text-sm text-[#49B6E5] hover:underline">Mở xử lý</Link>
+            </div>
+            <div className="space-y-3">
+              {pendingReports.length > 0 ? pendingReports.map((report) => (
+                <div key={report.id} className="p-3 bg-gray-50 rounded-lg border border-[#E5E1DC]">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-['Comfortaa', cursive] text-sm text-[#263D5B]">{report.reportedUserName}</p>
+                      <p className="text-xs text-gray-500 mt-1">Báo cáo bởi {report.reporterName}</p>
+                      <p className="text-xs text-red-500 mt-2">{report.reason}</p>
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                      <button type="button" onClick={() => handleApproveReport(report.id)} className="px-2 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600">Cấm</button>
+                      <button type="button" onClick={() => handleRejectReport(report.id)} className="px-2 py-1 bg-gray-300 text-[#263D5B] rounded text-xs hover:bg-gray-400">Bỏ</button>
+                    </div>
+                  </div>
+                </div>
+              )) : <p className="text-center text-gray-500 py-4">Không có báo cáo chờ xử lý</p>}
+            </div>
+          </Card>
+
+          <Card hoverable={false}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-['Comfortaa', cursive] text-xl text-[#263D5B]">Đơn hàng gần đây</h3>
+              <Link to="/admin/orders" className="text-sm text-[#49B6E5] hover:underline">Xem tất cả</Link>
+            </div>
+            <div className="space-y-3">
+              {recentOrders.map((order) => (
+                <div key={order.id} className="flex items-center justify-between gap-3 p-3 bg-white rounded-lg border border-[#E5E1DC]">
+                  <div className="min-w-0">
+                    <p className="font-['Comfortaa', cursive] text-sm text-[#263D5B]">{order.course}</p>
+                    <p className="text-xs text-gray-500 mt-1">{order.user} • {order.date}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="font-['Comfortaa', cursive] text-sm text-[#49B6E5]">{formatPrice(order.amount)}</p>
+                    <Badge variant={order.status === 'pending' ? 'warning' : statusMeta[order.status].variant}>
+                      {order.status === 'pending' ? 'Chờ xử lý' : statusMeta[order.status].label}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
       </div>
     </div>
   );

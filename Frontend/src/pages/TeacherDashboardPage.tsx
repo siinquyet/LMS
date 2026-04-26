@@ -15,6 +15,7 @@ import {
   Filter
 } from 'lucide-react';
 import { Card, Button, Badge, Avatar, Input, Select } from '../components/common';
+import { teacherDashboardCourses, teacherDashboardStudents, teacherRevenueData } from '../mockData';
 
 interface Student {
   id: number;
@@ -36,43 +37,20 @@ interface Course {
   status: 'completed' | 'draft';
 }
 
-const mockCourses: Course[] = [
-  { id: 1, title: 'React & Next.js Full Course', thumbnail: 'https://picsum.photos/seed/react/300/200', students: 1250, revenue: 875000000, rating: 4.8, lessons: 50, status: 'approved' },
-  { id: 2, title: 'TypeScript Fundamentals', thumbnail: 'https://picsum.photos/seed/ts/300/200', students: 890, revenue: 444000000, rating: 4.9, lessons: 30, status: 'approved' },
-  { id: 3, title: 'Node.js Backend', thumbnail: 'https://picsum.photos/seed/node/300/200', students: 200, revenue: 160000000, rating: 4.6, lessons: 40, status: 'pending' },
-];
-
-const mockStudents: Student[] = [
-  { id: 1, name: 'Nguyễn Văn A', avatar: 'NVA', course: 'React & Next.js Full Course', progress: 75, enrolledDate: '15/01/2026' },
-  { id: 2, name: 'Trần Thị B', avatar: 'TTB', course: 'TypeScript Fundamentals', progress: 45, enrolledDate: '20/01/2026' },
-  { id: 3, name: 'Lê Văn C', avatar: 'LVC', course: 'React & Next.js Full Course', progress: 30, enrolledDate: '22/01/2026' },
-  { id: 4, name: 'Phạm Thị D', avatar: 'PTD', course: 'Node.js Backend', progress: 90, enrolledDate: '25/01/2026' },
-  { id: 5, name: 'Hoàng Văn E', avatar: 'HVE', course: 'TypeScript Fundamentals', progress: 60, enrolledDate: '28/01/2026' },
-];
-
 const statusColors = {
   approved: 'success',
   pending: 'warning',
   draft: 'default',
 } as const;
 
-const revenueData = [
-  { label: 'T2', value: 12.5 },
-  { label: 'T3', value: 18.2 },
-  { label: 'T4', value: 15.8 },
-  { label: 'T5', value: 22.1 },
-  { label: 'T6', value: 28.5 },
-  { label: 'T7', value: 52.4 },
-];
-
-const maxRevenue = Math.max(...revenueData.map(d => d.value));
+const maxRevenue = Math.max(...teacherRevenueData.map(d => d.value));
 
 export const TeacherDashboardPage: FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [courseFilter, setCourseFilter] = useState('all');
   
   const filteredStudents = useMemo(() => {
-    return mockStudents.filter(s => {
+      return teacherDashboardStudents.filter(s => {
       const matchesSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         s.course.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesCourse = courseFilter === 'all' || s.course === courseFilter;
@@ -81,7 +59,7 @@ export const TeacherDashboardPage: FC = () => {
   }, [searchQuery, courseFilter]);
   
   const courseOptions = useMemo(() => {
-    const courses = [...new Set(mockStudents.map(s => s.course))];
+    const courses = [...new Set(teacherDashboardStudents.map(s => s.course))];
     return ['all', ...courses];
   }, []);
   
@@ -93,7 +71,7 @@ export const TeacherDashboardPage: FC = () => {
   };
 
   const stats = [
-    { title: 'Tổng khóa học', value: mockCourses.length, icon: <BookOpen className="w-6 h-6" />, color: 'bg-blue-500', change: 2 },
+    { title: 'Tổng khóa học', value: teacherDashboardCourses.length, icon: <BookOpen className="w-6 h-6" />, color: 'bg-blue-500', change: 2 },
     { title: 'Tổng học viên', value: 2340, icon: <Users className="w-6 h-6" />, color: 'bg-green-500', change: 12 },
     { title: 'Doanh thu tháng', value: '52.4M', icon: <DollarSign className="w-6 h-6" />, color: 'bg-yellow-500', change: 8 },
     { title: 'Tỉ lệ hoàn thành', value: '72%', icon: <CheckCircle className="w-6 h-6" />, color: 'bg-purple-500', change: 5 },
@@ -110,6 +88,18 @@ export const TeacherDashboardPage: FC = () => {
             <p className="text-gray-600 mt-1">Chào mừng quay lại!</p>
           </div>
           <div className="flex gap-2">
+            <Link to="/teacher/analytics">
+              <Button variant="secondary">
+                <TrendingUp className="w-5 h-5" />
+                Xem doanh thu
+              </Button>
+            </Link>
+            <Link to="/teacher/students">
+              <Button variant="secondary">
+                <Users className="w-5 h-5" />
+                Quản lý học viên
+              </Button>
+            </Link>
             <Link to="/teacher/courses">
               <Button variant="secondary">
                 <BookOpen className="w-5 h-5" />
@@ -238,7 +228,7 @@ export const TeacherDashboardPage: FC = () => {
               </span>
             </div>
             <div className="flex items-end gap-2 h-40">
-              {revenueData.map((item) => (
+              {teacherRevenueData.map((item) => (
                 <div key={item.label} className="flex-1 flex flex-col items-center gap-2">
                   <div 
                     className="w-full bg-[#49B6E5] rounded-t-md hover:bg-[#3aa8d4] transition-colors"
@@ -254,7 +244,7 @@ export const TeacherDashboardPage: FC = () => {
                 <div>
                   <p className="text-xs text-gray-500">Tổng doanh thu</p>
                   <p className="font-['Comfortaa', cursive] text-xl text-[#263D5B]">
-                    {revenueData.reduce((a, b) => a + b.value, 0).toFixed(1)}M
+                    {teacherRevenueData.reduce((a, b) => a + b.value, 0).toFixed(1)}M
                   </p>
                 </div>
                 <div className="text-right">
@@ -281,7 +271,7 @@ export const TeacherDashboardPage: FC = () => {
               </Link>
             </div>
             <div className="space-y-3">
-              {mockCourses.map((course) => (
+              {teacherDashboardCourses.map((course) => (
                 <div key={course.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
                   <img 
                     src={course.thumbnail} 

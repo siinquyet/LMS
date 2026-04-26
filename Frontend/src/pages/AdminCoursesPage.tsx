@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { BookOpen, Check, X, Eye, Search } from 'lucide-react';
 import { Card, Badge } from '../components/common';
+import { adminDashboardCourses } from '../mockData';
 
 interface Course {
   id: number;
@@ -13,12 +14,6 @@ interface Course {
   category: string;
 }
 
-const mockCourses: Course[] = [
-  { id: 1, title: 'React & Next.js Full Course', instructor: 'Teacher', thumbnail: 'https://picsum.photos/seed/react/300/200', students: 1250, price: 699000, status: 'approved', category: 'Lập trình' },
-  { id: 2, title: 'TypeScript Fundamentals', instructor: 'Teacher', thumbnail: 'https://picsum.photos/seed/ts/300/200', students: 890, price: 499000, status: 'approved', category: 'Lập trình' },
-  { id: 3, title: 'Node.js Backend', instructor: 'Teacher', thumbnail: 'https://picsum.photos/seed/node/300/200', students: 200, price: 799000, status: 'pending', category: 'Lập trình' },
-];
-
 const statusColors: Record<string, 'default' | 'success' | 'warning' | 'danger'> = {
   approved: 'success', pending: 'warning', rejected: 'danger', draft: 'default',
 };
@@ -28,7 +23,7 @@ const formatPrice = (price: number) => {
 };
 
 export const AdminCoursesPage: React.FC = () => {
-  const [courses, setCourses] = useState(mockCourses);
+  const [courses, setCourses] = useState<Course[]>(adminDashboardCourses.map((course) => ({ ...course, category: 'Lập trình' })));
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
 

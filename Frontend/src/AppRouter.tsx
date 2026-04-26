@@ -16,8 +16,10 @@ import QuizDoPage from "./pages/QuizDoPage";
 import QuizResultPage from "./pages/QuizResultPage";
 import QuizReviewPage from "./pages/QuizReviewPage";
 import SettingsPage from "./components/common/SettingsPage";
+import TeacherAnalyticsPage from "./pages/TeacherAnalyticsPage";
 import TeacherCoursesPage from "./pages/TeacherCoursesPage";
 import TeacherDashboardPage from "./pages/TeacherDashboardPage";
+import TeacherStudentsPage from "./pages/TeacherStudentsPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
 import AdminCoursesPage from "./pages/AdminCoursesPage";
 import AdminUsersPage from "./pages/AdminUsersPage";
@@ -42,14 +44,17 @@ const AppRouter = () => {
         <Route path="/settings" element={<AppShell><SettingsPage /></AppShell>} />
         <Route path="/teacher" element={<TeacherLayout><TeacherDashboardPage /></TeacherLayout>} />
         <Route path="/teacher/courses" element={<TeacherLayout><TeacherCoursesPage /></TeacherLayout>} />
+        <Route path="/teacher/students" element={<TeacherLayout><TeacherStudentsPage /></TeacherLayout>} />
+        <Route path="/teacher/analytics" element={<TeacherLayout><TeacherAnalyticsPage /></TeacherLayout>} />
+        <Route path="/teacher/settings" element={<TeacherLayout><SettingsPage /></TeacherLayout>} />
         <Route path="/admin" element={<AdminLayout><AdminDashboardPage /></AdminLayout>} />
         <Route path="/admin/courses" element={<AdminLayout><AdminCoursesPage /></AdminLayout>} />
         <Route path="/admin/users" element={<AdminLayout><AdminUsersPage /></AdminLayout>} />
         <Route path="/admin/reports" element={<AdminLayout><AdminReportsPage /></AdminLayout>} />
         <Route path="/admin/orders" element={<AdminLayout><AdminOrdersPage /></AdminLayout>} />
         <Route path="/forgot-password" element={<AppShell><div>Forgot Password</div></AppShell>} />
-        <Route path="/learn/:id" element={<AppShell><LearningPage /></AppShell>} />
-        <Route path="/learn/:courseId/:lessonId" element={<AppShell><LearningPage /></AppShell>} />
+        <Route path="/learn/:id" element={<LearningPage />} />
+        <Route path="/learn/:courseId/:lessonId" element={<LearningPage />} />
         <Route path="/quiz/:courseId/:lessonId" element={<QuizPage />} />
         <Route path="/quiz/:courseId/:lessonId/do" element={<QuizDoPage />} />
         <Route path="/quiz/:courseId/:lessonId/result" element={<QuizResultPage />} />
