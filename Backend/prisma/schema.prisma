@@ -32,6 +32,7 @@ enum OrderStatus {
   pending
   success
   failed
+  refunded
 }
 
 enum PaymentStatus {
@@ -303,13 +304,14 @@ model QuizQuestion {
 }
 
 model QuizAttempt {
-  id        Int      @id @default(autoincrement())
-  quizId     Int     @map("quiz_id")
-  userId     Int     @map("nguoi_dung_id")
-  score      Float   @map("diem")
-  takenAt    DateTime @map("ngay_lam")
-  quiz       Quiz    @relation(fields: [quizId], references: [id])
-  user       User    @relation(fields: [userId], references: [id])
+  id        Int       @id @default(autoincrement())
+  quizId    Int       @map("quiz_id")
+  userId    Int       @map("nguoi_dung_id")
+  score     Float     @map("diem")
+  feedback  String?   @map("nhan_xet")
+  takenAt   DateTime  @map("ngay_lam")
+  quiz      Quiz      @relation(fields: [quizId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
 
   @@index([quizId])
   @@index([userId])

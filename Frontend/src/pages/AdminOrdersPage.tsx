@@ -1,16 +1,7 @@
-import { useState } from 'react';
-import { RotateCcw, Search, TrendingUp } from 'lucide-react';
-import { Card, Badge, Button } from '../components/common';
-import { adminOrders } from '../mockData';
-
-interface Order {
-  id: number;
-  user: string;
-  course: string;
-  amount: number;
-  status: 'success' | 'refunded';
-  date: string;
-}
+import { useState, useEffect } from 'react';
+import { RotateCcw, TrendingUp } from 'lucide-react';
+import { Card, Badge, Button, Loader } from '../components/common';
+import { getOrders, refundOrder } from '../api';
 
 const formatPrice = (price: number) => {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(price);
@@ -22,28 +13,50 @@ const formatDate = (dateStr: string) => {
 };
 
 export const AdminOrdersPage: React.FC = () => {
-  const [orders, setOrders] = useState<Order[]>(adminOrders);
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
-  const filteredOrders = orders.filter(o => {
-    const matchesSearch = o.user.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      o.course.toLowerCase().includes(searchQuery.toLowerCase());
+  useEffect(() => {
+    const fetchOrders = async () => {
+      setLoading(true);
+      try {
+        const { orders: data } = await getOrders();
+        setOrders(data || []);
+      } catch (error) {
+        console.error('Error fetching orders:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchOrders();
+  }, []);
+
+  const handleRefund = async (id: number) => {
+    if (!confirm('Bạn có chắc muốn hoàn tiền đơn hàng này?')) return;
+    try {
+      await refundOrder(id);
+      setOrders(orders.map(o => o.id === id ? { ...o, trang_thai: 'refunded' } : o));
+    } catch (error) {
+      console.error('Error refunding:', error);
+    }
+  };
+
+  const filteredOrders = orders.filter((o: any) => {
+    const matchesSearch = o.user?.ten?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      o.items?.[0]?.khoa_hoc?.tieu_de?.toLowerCase().includes(searchQuery.toLowerCase());
     
     let matchesDate = true;
-    if (startDate && o.date < startDate) matchesDate = false;
-    if (endDate && o.date > endDate) matchesDate = false;
+    if (startDate && o.ngay_dat < startDate) matchesDate = false;
+    if (endDate && o.ngay_dat > endDate) matchesDate = false;
     
     return matchesSearch && matchesDate;
   });
 
-  const totalRevenue = filteredOrders.filter((order) => order.status === 'success').reduce((sum, o) => sum + o.amount, 0);
-  const monthlyRevenue = orders.filter((order) => order.status === 'success' && order.date.startsWith('2024-07')).reduce((sum, order) => sum + order.amount, 0);
-
-  const handleRefund = (id: number) => {
-    setOrders((current) => current.map((order) => (order.id === id ? { ...order, status: 'refunded' } : order)));
-  };
+  const totalRevenue = filteredOrders.filter((o: any) => o.trang_thai === 'success').reduce((sum, o) => sum + o.tong_tien, 0);
+  const monthlyRevenue = orders.filter((o: any) => o.trang_thai === 'success' && o.ngay_dat?.startsWith('2024-07')).reduce((sum, o) => sum + o.tong_tien, 0);
 
   return (
     <div className="max-w-7xl mx-auto w-full">
@@ -65,19 +78,18 @@ export const AdminOrdersPage: React.FC = () => {
             <span className="font-['Comfortaa', cursive] text-gray-500 text-sm">Doanh thu tháng này</span>
           </div>
           <p className="font-['Comfortaa', cursive] text-2xl text-[#263D5B]">{formatPrice(monthlyRevenue)}</p>
-          <p className="font-['Comfortaa', cursive] text-sm text-green-600">{orders.filter((order) => order.status === 'refunded').length} đơn đã hoàn</p>
+          <p className="font-['Comfortaa', cursive] text-sm text-green-600">{orders.filter((o: any) => o.trang_thai === 'refunded').length} đơn đã hoàn</p>
         </Card>
       </div>
 
       <div className="flex gap-4 mb-4">
         <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
             placeholder="Tìm kiếm đơn hàng..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg font-['Comfortaa', cursive] text-sm focus:outline-none focus:border-[#49B6E5]"
+            className="w-full pl-4 pr-4 py-2 border border-gray-300 rounded-lg font-['Comfortaa', cursive] text-sm focus:outline-none focus:border-[#49B6E5]"
           />
         </div>
         <input
@@ -95,6 +107,7 @@ export const AdminOrdersPage: React.FC = () => {
         />
       </div>
 
+      {loading ? <Loader /> : (
       <Card className="p-6">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -110,24 +123,28 @@ export const AdminOrdersPage: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredOrders.map((order) => (
+              {filteredOrders.map((order: any) => (
                 <tr key={order.id} className="border-b border-gray-100 hover:bg-gray-50">
                   <td className="py-3 px-4 font-['Comfortaa', cursive] text-[#263D5B] text-sm">#{order.id}</td>
-                  <td className="py-3 px-4 font-['Comfortaa', cursive] text-gray-600 text-sm">{order.user}</td>
-                  <td className="py-3 px-4 font-['Comfortaa', cursive] text-gray-600 text-sm">{order.course}</td>
-                  <td className="py-3 px-4 font-['Comfortaa', cursive] text-[#263D5B] text-sm">{formatPrice(order.amount)}</td>
-                  <td className="py-3 px-4">
-                    <Badge variant={order.status === 'refunded' ? 'warning' : 'success'}>{order.status === 'refunded' ? 'Đã hoàn tiền' : 'Thành công'}</Badge>
+                  <td className="py-3 px-4 font-['Comfortaa', cursive] text-gray-600 text-sm">
+                    {order.user?.ho} {order.user?.ten}
                   </td>
-                  <td className="py-3 px-4 font-['Comfortaa', cursive] text-gray-600 text-sm">{formatDate(order.date)}</td>
+                  <td className="py-3 px-4 font-['Comfortaa', cursive] text-gray-600 text-sm">
+                    {order.items?.[0]?.khoa_hoc?.tieu_de}
+                  </td>
+                  <td className="py-3 px-4 font-['Comfortaa', cursive] text-gray-600 text-sm">{formatPrice(order.tong_tien)}</td>
                   <td className="py-3 px-4">
-                    {order.status === 'success' ? (
-                      <Button size="sm" variant="outline" onClick={() => handleRefund(order.id)}>
-                        <RotateCcw className="w-4 h-4" />
+                    <Badge variant={order.trang_thai === 'success' ? 'success' : order.trang_thai === 'refunded' ? 'warning' : 'default'}>
+                      {order.trang_thai === 'success' ? 'Thành công' : order.trang_thai === 'refunded' ? 'Đã hoàn' : 'Chờ'}
+                    </Badge>
+                  </td>
+                  <td className="py-3 px-4 font-['Comfortaa', cursive] text-gray-600 text-sm">{formatDate(order.ngay_dat)}</td>
+                  <td className="py-3 px-4">
+                    {order.trang_thai === 'success' && (
+                      <Button variant="outline" size="sm" onClick={() => handleRefund(order.id)}>
+                        <RotateCcw className="w-4 h-4 mr-1" />
                         Hoàn tiền
                       </Button>
-                    ) : (
-                      <span className="font-['Comfortaa', cursive] text-xs text-gray-400">Đã xử lý</span>
                     )}
                   </td>
                 </tr>
@@ -136,6 +153,7 @@ export const AdminOrdersPage: React.FC = () => {
           </table>
         </div>
       </Card>
+      )}
     </div>
   );
 };

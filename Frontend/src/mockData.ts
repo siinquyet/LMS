@@ -247,7 +247,7 @@ export interface Order {
   id: number;
   nguoi_dung_id: number;
   tong_tien: number;
-  trang_thai: 'pending' | 'success' | 'failed';
+  trang_thai: 'pending' | 'success' | 'failed' | 'refunded';
   ngay_dat: string;
 }
 
@@ -376,6 +376,7 @@ export interface QuizAttempt {
   quiz_id: number;
   nguoi_dung_id: number;
   diem: number;
+  nhan_xet?: string;
   ngay_lam: string;
 }
 
@@ -406,8 +407,50 @@ export const quizQuestions: QuizQuestion[] = [
 ];
 
 export const quizAttempts: QuizAttempt[] = [
-  { id: 1, quiz_id: 1, nguoi_dung_id: 1, diem: 8, ngay_lam: '2025-02-05' },
+  { id: 1, quiz_id: 1, nguoi_dung_id: 1, diem: 8, nhan_xet: 'Làm tốt!', ngay_lam: '2025-02-05' },
 ];
+
+// -------------------- 14. ANALYTICS & INSTRUCTOR DATA --------------------
+export const instructorList = [
+  { id: 3, ten_dang_nhap: 'teacher', email: 'teacher@example.com', ten: 'Teacher', ho: 'Le', anh_dai_dien: 'https://picsum.photos/seed/teacher/100/100', gioi_thieu: 'Giảng viên chuyên nghiệp', ngay_tham_gia: '2024-03-10' },
+  { id: 4, ten_dang_nhap: 'teacher2', email: 'teacher2@example.com', ten: 'Thi B', ho: 'Pham', anh_dai_dien: 'https://picsum.photos/seed/teacher2/100/100', gioi_thieu: 'Giảng viên thiết kế', ngay_tham_gia: '2024-05-20' },
+];
+
+export const instructorStudentsData = [
+  { id: 1, ten_dang_nhap: 'user1', email: 'user1@example.com', ten: 'Van A', ho: 'Nguyen', anh_dai_dien: null, ngay_tham_gia: '2024-01-15', khoa_hoc: [{ id: 1, tieu_de: 'React & Next.js Full Course', ngay_dang_ky: '2025-02-01' }] },
+  { id: 2, ten_dang_nhap: 'user2', email: 'user2@example.com', ten: 'Thi B', ho: 'Tran', anh_dai_dien: null, ngay_tham_gia: '2024-02-20', khoa_hoc: [{ id: 2, tieu_de: 'TypeScript Fundamentals', ngay_dang_ky: '2025-02-10' }] },
+];
+
+export const instructorAnalyticsData = {
+  tong_doanh_thu: 131900000,
+  tong_hoc_vien: 2140,
+  so_khoa_hoc: 3,
+  khoa_hoc: [
+    { id: 1, tieu_de: 'React & Next.js Full Course', so_luong_da_dang_ky: 1250, gia: 699000, doanh_thu: 873750000 },
+    { id: 2, tieu_de: 'TypeScript Fundamentals', so_luong_da_dang_ky: 890, gia: 499000, doanh_thu: 444110000 },
+    { id: 3, tieu_de: 'Node.js Backend', so_luong_da_dang_ky: 0, gia: 799000, doanh_thu: 0 },
+  ],
+  dang_ky_gan_day: [
+    { ho_ten: 'Nguyen Van A', khoa_hoc: 'React & Next.js Full Course', ngay_dang_ky: '2025-03-01' },
+    { ho_ten: 'Tran Thi B', khoa_hoc: 'TypeScript Fundamentals', ngay_dang_ky: '2025-02-28' },
+  ],
+};
+
+export const analyticsOverview = {
+  tong_nguoi_dung: 150,
+  tong_khoa_hoc: 45,
+  khoa_chờ_duyệt: 5,
+  khoa_da_duyet: 32,
+  tong_don_hang: 280,
+  tong_doanh_thu: 125000000,
+  bieu_do_doanh_thu: [
+    { ngay: '2025-02-01', doanh_thu: 5000000 },
+    { ngay: '2025-02-02', doanh_thu: 7200000 },
+    { ngay: '2025-02-03', doanh_thu: 4100000 },
+    { ngay: '2025-02-04', doanh_thu: 8900000 },
+    { ngay: '2025-02-05', doanh_thu: 6500000 },
+  ],
+};
 
 // -------------------- 14. BÀI TẬP --------------------
 export interface Assignment {

@@ -89,12 +89,18 @@ export const Avatar: React.FC<AvatarProps> = ({
     );
   }
 
-  const Wrapper = isInteractive ? 'button' : 'div';
+  const Wrapper = isInteractive ? 'div' : 'div';
 
   return (
-    <Wrapper
-      type={isInteractive ? 'button' : undefined}
+    <div
+      role={isInteractive ? 'button' : undefined}
+      tabIndex={isInteractive ? 0 : undefined}
       onClick={onClick}
+      onKeyDown={(e) => {
+        if (isInteractive && (e.key === 'Enter' || e.key === ' ')) {
+          onClick?.();
+        }
+      }}
       className={`
         ${sizeStyles[size]}
         border-2
@@ -122,7 +128,7 @@ export const Avatar: React.FC<AvatarProps> = ({
       ) : (
         <span>{getInitials(name)}</span>
       )}
-    </Wrapper>
+    </div>
   );
 };
 

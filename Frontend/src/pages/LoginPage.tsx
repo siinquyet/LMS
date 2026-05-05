@@ -18,10 +18,9 @@ export const LoginPage: React.FC = () => {
     
     const success = await login(email, password);
     if (success) {
-      // Get user from localStorage to determine redirect
-      const storedUser = localStorage.getItem('lms_auth_user');
-      if (storedUser) {
-        const user = JSON.parse(storedUser);
+      const userJson = localStorage.getItem('lms_auth_user');
+      if (userJson) {
+        const user = JSON.parse(userJson);
         if (user.vai_tro === 'giang_vien') {
           navigate('/teacher');
         } else if (user.vai_tro === 'admin') {
@@ -50,7 +49,7 @@ export const LoginPage: React.FC = () => {
               Chào mừng trở lại!
             </p>
             <p className="font-['Comfortaa', cursive] text-xs text-red-500 mt-2">
-              Test: admin/admin | teacher/teacher | user/user
+              
             </p>
           </div>
 
@@ -117,9 +116,9 @@ export const LoginPage: React.FC = () => {
               Tài khoản demo:
             </p>
             <div className="font-['Comfortaa', cursive] text-xs text-[#6B7280] space-y-1">
-              <p>👤 Học viên: user / user</p>
-              <p>👨‍🏫 Giảng viên: teacher / teacher</p>
-              <p>🛠 Admin: admin / admin</p>
+              <p>Học viên: user </p>
+              <p>Giảng viên: teacher </p>
+              <p>Admin: admin </p>
             </div>
           </div>
         </Card>

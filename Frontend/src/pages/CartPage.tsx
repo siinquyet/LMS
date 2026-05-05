@@ -3,24 +3,47 @@ import { Link } from 'react-router-dom';
 import { ShoppingCart, Trash2, ArrowRight, CheckCircle, Clock, AlertCircle } from 'lucide-react';
 import { Button, Card, Avatar } from '../components/common';
 import { useCart } from '../contexts/CartContext';
+import { useAuth } from '../contexts/AuthContext';
+import * as api from '../api';
 
 type PaymentStatus = 'idle' | 'processing' | 'success' | 'failed';
 
 export const CartPage: React.FC = () => {
   const { items, removeItem, clearCart, totalPrice } = useCart();
+  const { user } = useAuth();
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('idle');
   const [countdown, setCountdown] = useState(5);
+  const [error, setError] = useState<string | null>(null);
 
   const handleCheckout = () => {
+    if (!user) {
+      setError('Vui lòng đăng nhập để thanh toán');
+      return;
+    }
+
     setPaymentStatus('processing');
     setCountdown(5);
+    setError(null);
 
     const interval = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
-          setPaymentStatus('success');
-          clearCart();
+          
+          // Enroll each course after payment - move logic outside callback
+          (async () => {
+            try {
+              for (const item of items) {
+                await api.enrollCourse(user.id, item.id);
+              }
+              setPaymentStatus('success');
+              clearCart();
+            } catch (err) {
+              console.error('Enrollment failed:', err);
+              setPaymentStatus('failed');
+              setError('Đăng ký khóa học thất bại. Vui lòng thử lại.');
+            }
+          })();
           return 0;
         }
         return prev - 1;
@@ -69,7 +92,7 @@ export const CartPage: React.FC = () => {
             {items.map((item) => (
               <Card key={item.id} className="flex gap-4">
                 <img
-                  src={item.thumbnail}
+                  src={item.thumbnail || 'https://picsum.photos/seed/course/300/200'}
                   alt={item.title}
                   className="w-32 h-24 object-cover rounded-[12px] border-2 border-[#263D5B]"
                 />
@@ -124,6 +147,12 @@ export const CartPage: React.FC = () => {
                   </div>
                 </div>
               </div>
+
+              {error && (
+                <div className="mb-4 p-3 bg-[#FEF2F2] rounded-[8px]">
+                  <p className="font-['Comfortaa', cursive] text-sm text-[#DC2626]">{error}</p>
+                </div>
+              )}
 
               {paymentStatus === 'idle' && (
                 <Button

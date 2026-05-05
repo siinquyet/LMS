@@ -18,6 +18,7 @@ import QuizReviewPage from "./pages/QuizReviewPage";
 import SettingsPage from "./components/common/SettingsPage";
 import TeacherAnalyticsPage from "./pages/TeacherAnalyticsPage";
 import TeacherCoursesPage from "./pages/TeacherCoursesPage";
+import TeacherCourseEditPage from "./pages/TeacherCourseEditPage";
 import TeacherDashboardPage from "./pages/TeacherDashboardPage";
 import TeacherStudentsPage from "./pages/TeacherStudentsPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
@@ -44,6 +45,8 @@ const AppRouter = () => {
         <Route path="/settings" element={<AppShell><SettingsPage /></AppShell>} />
         <Route path="/teacher" element={<TeacherLayout><TeacherDashboardPage /></TeacherLayout>} />
         <Route path="/teacher/courses" element={<TeacherLayout><TeacherCoursesPage /></TeacherLayout>} />
+        <Route path="/teacher/courses/:id/edit" element={<TeacherLayout><TeacherCourseEditPage /></TeacherLayout>} />
+        <Route path="/teacher/courses/new" element={<TeacherLayout><TeacherCourseEditPage /></TeacherLayout>} />
         <Route path="/teacher/students" element={<TeacherLayout><TeacherStudentsPage /></TeacherLayout>} />
         <Route path="/teacher/analytics" element={<TeacherLayout><TeacherAnalyticsPage /></TeacherLayout>} />
         <Route path="/teacher/settings" element={<TeacherLayout><SettingsPage /></TeacherLayout>} />

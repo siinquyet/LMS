@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { 
   BookOpen, 
@@ -21,17 +21,61 @@ import {
   Flag,
   ArrowUpDown
 } from 'lucide-react';
-import { Button, Card, Avatar, Badge } from '../components/common';
+import { Button, Card, Avatar, Badge, Loader } from '../components/common';
 import { useCart } from '../contexts/CartContext';
-import { courseDetailMockData as courseData } from '../mockData';
+import { getCourse, enrollCourse } from '../api';
+import { useAuth } from '../contexts/AuthContext';
+import { courseDetailMockData } from '../mockData';
 
 export const CourseDetailPage: React.FC = () => {
   const { id } = useParams();
   const { addItem } = useCart();
+  const { user } = useAuth();
+  const [course, setCourse] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [openChapters, setOpenChapters] = useState<number[]>([]);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [userRating, setUserRating] = useState(0);
   const [ratingComment, setRatingComment] = useState('');
+
+  useEffect(() => {
+    const fetchCourse = async () => {
+      if (!id) return;
+      setLoading(true);
+      try {
+        const { course: data } = await getCourse(Number(id));
+        if (data && data.tieu_de) {
+          setCourse(data);
+        } else {
+          setCourse(courseDetailMockData);
+        }
+      } catch (error) {
+        console.error('Error fetching course:', error);
+        setCourse(courseDetailMockData);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchCourse();
+  }, [id]);
+
+  const isMock = !course?.tieu_de;
+  const displayCourse = isMock ? {
+    ...courseDetailMockData,
+    id: Number(id),
+    tieu_de: course?.tieu_de || courseDetailMockData.title,
+    gia: course?.gia || courseDetailMockData.price,
+    mo_ta: course?.mo_ta || courseDetailMockData.description,
+    danh_muc: course?.danh_muc || { ten: courseDetailMockData.category },
+    muc_do: course?.muc_do || courseDetailMockData.level,
+    thoi_luong: course?.thoi_luong || courseDetailMockData.duration,
+    so_bai_hoc: course?.so_bai_hoc || courseDetailMockData.lessons,
+    xep_hang: course?.xep_hang || courseDetailMockData.rating,
+    so_luong_da_dang_ky: course?.so_luong_da_dang_ky || courseDetailMockData.students,
+    thumbnail: course?.thumbnail || courseDetailMockData.thumbnail,
+    giang_vien: course?.giang_vien || { ten: courseDetailMockData.instructor, ho: '', gioi_thieu: courseDetailMockData.instructorBio },
+    chuong_hoc: course?.chuong_hoc || courseDetailMockData.chapters,
+  } : course;
 
   const handleSubmitRating = () => {
     if (userRating > 0 && ratingComment.trim()) {
@@ -49,15 +93,31 @@ export const CourseDetailPage: React.FC = () => {
   };
 
   const handleAddToCart = () => {
+    if (!course) return;
     addItem({
-      id: courseData.id,
-      title: courseData.title,
-      thumbnail: courseData.thumbnail,
-      instructor: courseData.instructor,
-      price: courseData.price,
-      originalPrice: courseData.originalPrice
+      id: course.id,
+      title: course.tieu_de,
+      thumbnail: course.thumbnail,
+      instructor: course.giang_vien?.ten,
+      price: course.gia,
+      originalPrice: course.gia
     });
   };
+
+  const handleEnroll = async () => {
+    if (!course || !user) return;
+    try {
+      await enrollCourse(user.id, course.id);
+      alert('Đăng ký thành công!');
+    } catch (error) {
+      console.error('Error enrolling:', error);
+    }
+  };
+
+  if (loading) return <Loader />;
+  if (!displayCourse) return <div>Không tìm thấy khóa học</div>;
+
+  const courseData = displayCourse;
 
   return (
     <div className="w-full bg-[#F8F6F3]">
@@ -73,39 +133,39 @@ export const CourseDetailPage: React.FC = () => {
             {/* Left - Course Info */}
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-4">
-                <Badge variant="primary">{courseData.category}</Badge>
-                <Badge variant="warning">{courseData.level}</Badge>
+                <Badge variant="primary">{course.danh_muc?.ten || 'Lập trình'}</Badge>
+                <Badge variant="warning">{course.muc_do || 'Trung cấp'}</Badge>
               </div>
               
               <h1 className="font-['Comfortaa', cursive] text-3xl md:text-4xl mb-4">
-                {courseData.title}
+                {course.tieu_de}
               </h1>
               
               <p className="font-['Comfortaa', cursive] text-white/80 mb-6 text-lg">
-                {courseData.description}
+                {course.mo_ta}
               </p>
               
               <div className="flex flex-wrap items-center gap-4 mb-6">
                 <div className="flex items-center gap-2">
                   <Star className="w-5 h-5 text-[#D97706] fill-[#D97706]" />
-                  <span className="font-['Comfortaa', cursive] font-semibold">{courseData.rating}</span>
-                  <span className="font-['Comfortaa', cursive] text-white/70">({courseData.students} học viên)</span>
+                  <span className="font-['Comfortaa', cursive] font-semibold">{course.xep_hang || 0}</span>
+                  <span className="font-['Comfortaa', cursive] text-white/70">({course.so_luong_da_dang_ky || 0} học viên)</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Clock className="w-5 h-5" />
-                  <span className="font-['Comfortaa', cursive]">{courseData.duration}</span>
+                  <span className="font-['Comfortaa', cursive]">{course.thoi_luong || '0 giờ'}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <FileText className="w-5 h-5" />
-                  <span className="font-['Comfortaa', cursive]">{courseData.lessons} bài học</span>
+                  <span className="font-['Comfortaa', cursive]">{course.so_bai_hoc || 0} bài học</span>
                 </div>
               </div>
               
               <div className="flex items-center gap-3">
-                <Avatar name={courseData.instructorAvatar} size="lg" />
+                <Avatar name={course.giang_vien?.ten ? `${course.giang_vien.ho} ${course.giang_vien.ten}` : 'Instructor'} size="lg" />
                 <div>
                   <p className="font-['Comfortaa', cursive] text-sm text-white/70">Giảng viên</p>
-                  <p className="font-['Comfortaa', cursive] font-semibold">{courseData.instructor}</p>
+                  <p className="font-['Comfortaa', cursive] font-semibold">{course.giang_vien?.ten ? `${course.giang_vien.ho} ${course.giang_vien.ten}` : 'Instructor'}</p>
                 </div>
               </div>
             </div>
@@ -114,23 +174,16 @@ export const CourseDetailPage: React.FC = () => {
             <div className="w-full lg:w-96">
               <Card className="bg-white p-0 overflow-hidden">
                 <img 
-                  src={courseData.thumbnail} 
-                  alt={courseData.title}
+                  src={course.thumbnail || course.hinh_anh || 'https://picsum.photos/seed/course/800/400'} 
+                  alt={course.tieu_de}
                   className="w-full h-48 object-cover"
                 />
                 <div className="p-6">
                   <div className="flex items-end gap-2 mb-4">
                     <span className="font-['Comfortaa', cursive] text-3xl font-bold text-[#263D5B]">
-                      {courseData.price.toLocaleString()}đ
-                    </span>
-                    <span className="font-['Comfortaa', cursive] text-lg text-[#6B7280] line-through">
-                      {courseData.originalPrice.toLocaleString()}đ
+                      {(course.gia || 0).toLocaleString()}đ
                     </span>
                   </div>
-                  
-                  <p className="font-['Comfortaa', cursive] text-sm text-[#16A34A] mb-4">
-                    ⚡ Giảm 30% - Chỉ còn hôm nay!
-                  </p>
                   
                   <Button 
                     variant="primary" 
@@ -171,7 +224,7 @@ export const CourseDetailPage: React.FC = () => {
                 Bạn sẽ học được gì?
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {courseData.whatYouLearn.map((item, index) => (
+                {(courseData.whatYouLearn || []).map((item, index) => (
                   <div key={index} className="flex items-start gap-2">
                     <CheckCircle className="w-5 h-5 text-[#16A34A] shrink-0 mt-0.5" />
                     <span className="font-['Comfortaa', cursive] text-sm text-[#263D5B]">{item}</span>
@@ -187,18 +240,18 @@ export const CourseDetailPage: React.FC = () => {
                 Nội dung khóa học
               </h2>
               <p className="font-['Comfortaa', cursive] text-sm text-[#6B7280] mb-4">
-                {courseData.chapters.length} chương • {courseData.lessons} bài học • {courseData.duration} tổng thời lượng
+                {(course.chuong_hoc || []).length} chương • {course.so_bai_hoc || 0} bài học • {course.thoi_luong || '0 giờ'} tổng thời lượng
               </p>
                
               <div className="space-y-2">
-                {courseData.chapters.map((chapter) => (
+                {(course.chuong_hoc || []).map((chapter: any) => (
                   <div key={chapter.id} className="border-2 border-[#263D5B] rounded-[12px] overflow-hidden">
                     <button
                       onClick={() => toggleChapter(chapter.id)}
                       className="w-full px-4 py-3 flex items-center justify-between bg-white hover:bg-[#F8F6F3] transition-colors"
                     >
                       <span className="font-['Comfortaa', cursive] text-[#263D5B]">
-                        {chapter.id}. {chapter.title} ({chapter.lessons.length} bài)
+                        {chapter.thu_tu}. {chapter.tieu_de} ({(chapter.bai_hoc || []).length} bài)
                       </span>
                       <ChevronDown 
                         className={`w-5 h-5 text-[#263D5B] transition-transform ${openChapters.includes(chapter.id) ? 'rotate-180' : ''}`}
@@ -206,18 +259,15 @@ export const CourseDetailPage: React.FC = () => {
                     </button>
                     {openChapters.includes(chapter.id) && (
                       <div className="px-4 py-3 bg-[#F8F6F3] border-t-2 border-dashed border-[#E5E1DC] space-y-2">
-                        {chapter.lessons.map((lesson) => (
+                        {(chapter.bai_hoc || []).map((lesson: any) => (
                           <div key={lesson.id} className="flex items-center justify-between p-2 hover:bg-white rounded-[8px]">
                             <div className="flex items-center gap-2">
-                              {lesson.type === 'video' && <Video className="w-4 h-4 text-[#6B7280]" />}
-                              {lesson.type === 'exercise' && <FileText className="w-4 h-4 text-[#6B7280]" />}
-                              {lesson.type === 'quiz' && <Star className="w-4 h-4 text-[#6B7280]" />}
-                              <span className="font-['Comfortaa', cursive] text-sm text-[#263D5B]">{lesson.title}</span>
-                              {lesson.free && (
-                                <Badge variant="success" size="sm">Free</Badge>
-                              )}
+                              {lesson.loai === 'video' && <Video className="w-4 h-4 text-[#6B7280]" />}
+                              {lesson.loai === 'exercise' && <FileText className="w-4 h-4 text-[#6B7280]" />}
+                              {lesson.loai === 'quiz' && <Star className="w-4 h-4 text-[#6B7280]" />}
+                              <span className="font-['Comfortaa', cursive] text-sm text-[#263D5B]">{lesson.tieu_de}</span>
                             </div>
-                            <span className="font-['Comfortaa', cursive] text-xs text-[#6B7280]">{lesson.duration}</span>
+                            <span className="font-['Comfortaa', cursive] text-xs text-[#6B7280]">{lesson.thoi_luong}</span>
                           </div>
                         ))}
                       </div>
@@ -234,7 +284,7 @@ export const CourseDetailPage: React.FC = () => {
                 Yêu cầu
               </h2>
               <ul className="space-y-2">
-                {courseData.requirements.map((req, index) => (
+                {(course.requirements || []).map((req: any, index: number) => (
                   <li key={index} className="flex items-center gap-2">
                     <span className="w-2 h-2 bg-[#263D5B] rounded-full" />
                     <span className="font-['Comfortaa', cursive] text-sm text-[#263D5B]">{req}</span>
@@ -250,16 +300,13 @@ export const CourseDetailPage: React.FC = () => {
                 Giảng viên
               </h2>
               <div className="flex items-start gap-4">
-                <Avatar name={courseData.instructorAvatar} size="xl" />
+                <Avatar name={course.giang_vien?.ten ? `${course.giang_vien.ho} ${course.giang_vien.ten}` : 'Instructor'} size="xl" />
                 <div>
                   <h3 className="font-['Comfortaa', cursive] text-lg text-[#263D5B] font-semibold">
-                    {courseData.instructor}
+                    {course.giang_vien?.ten ? `${course.giang_vien.ho} ${course.giang_vien.ten}` : 'Instructor'}
                   </h3>
                   <p className="font-['Comfortaa', cursive] text-sm text-[#6B7280] mb-2">
-                    Senior Web Developer
-                  </p>
-                  <p className="font-['Comfortaa', cursive] text-sm text-[#263D5B]">
-                    {courseData.instructorBio}
+                    {course.giang_vien?.gioi_thieu || 'Giảng viên'}
                   </p>
                 </div>
               </div>
@@ -269,7 +316,7 @@ export const CourseDetailPage: React.FC = () => {
             <Card className="mb-8">
               <h2 className="font-['Comfortaa', cursive] text-xl text-[#263D5B] mb-4 flex items-center gap-2">
                 <Star className="w-6 h-6 text-[#D97706]" />
-                Đánh giá ({courseData.ratings.length})
+                Đánh giá ({courseData.ratings?.length || 0})
               </h2>
               
               <div className="mb-6 p-4 bg-[#F8F6F3] rounded-[12px] border-2 border-[#263D5B]">
@@ -328,7 +375,7 @@ export const CourseDetailPage: React.FC = () => {
               </div>
 
               <div className="space-y-4">
-                {courseData.ratings.map(rating => (
+                {(courseData.ratings || []).map(rating => (
                   <div key={rating.id} className="border-b border-[#E5E1DC] pb-4 last:border-0">
                     <div className="flex items-start gap-3">
                       <Avatar name={rating.avatar} size="md" />

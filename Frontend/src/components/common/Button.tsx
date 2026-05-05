@@ -1,7 +1,7 @@
 import React from 'react';
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'danger' | 'outline' | 'ghost';
+  variant?: 'primary' | 'secondary' | 'danger' | 'outline' | 'ghost' | 'success' | 'warning';
   size?: 'sm' | 'md' | 'lg';
   children: React.ReactNode;
 }
@@ -35,6 +35,8 @@ export const Button: React.FC<ButtonProps> = ({
     primary: 'bg-[#49B6E5] text-white hover:bg-[#3A9BC7] shadow-[3px_3px_0px_#E5E1DC] hover:shadow-[4px_4px_0px_#E5E1DC] hover:translate-x-[-2px] hover:translate-y-[-2px]',
     secondary: 'bg-white text-[#263D5B] shadow-[3px_3px_0px_#E5E1DC] hover:shadow-[4px_4px_0px_#E5E1DC] hover:translate-x-[-2px] hover:translate-y-[-2px]',
     danger: 'bg-[#DC2626] text-white hover:bg-[#B91C1C] shadow-[3px_3px_0px_#E5E1DC] hover:shadow-[4px_4px_0px_#E5E1DC] hover:translate-x-[-2px] hover:translate-y-[-2px]',
+    success: 'bg-[#22C55E] text-white hover:bg-[#16A34A] shadow-[3px_3px_0px_#E5E1DC] hover:shadow-[4px_4px_0px_#E5E1DC] hover:translate-x-[-2px] hover:translate-y-[-2px]',
+    warning: 'bg-[#F59E0B] text-white hover:bg-[#D97706] shadow-[3px_3px_0px_#E5E1DC] hover:shadow-[4px_4px_0px_#E5E1DC] hover:translate-x-[-2px] hover:translate-y-[-2px]',
     outline: 'bg-transparent text-[#263D5B] border-dashed hover:bg-[#F8F6F3]',
     ghost: 'bg-transparent text-gray-300 hover:bg-[#475569]',
   };

@@ -118,12 +118,10 @@ export const Header: React.FC = () => {
               <BookOpen className="w-5 h-5" />
               My Courses
             </Link>
-            {displayRole !== 'hoc_vien' && (
-              <Link to="/assignments" className={navLinkClass('/assignments')}>
-                <FileText className="w-5 h-5" />
-                Assignments
-              </Link>
-            )}
+            <Link to="/assignments" className={navLinkClass('/assignments')}>
+              <FileText className="w-5 h-5" />
+              Assignments
+            </Link>
             <Link to="/forum" className={navLinkClass('/forum')}>
               <MessageCircle className="w-5 h-5" />
               Forum

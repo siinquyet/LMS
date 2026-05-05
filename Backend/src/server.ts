@@ -2,6 +2,13 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { PrismaClient } from '@prisma/client';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+import multer from 'multer';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const prisma = new PrismaClient();
@@ -10,6 +17,11 @@ const lessonTypes = ['video', 'document', 'quiz', 'exercise'] as const;
 const roles = ['hoc_vien', 'giang_vien', 'admin'] as const;
 
 const PORT = process.env.PORT || 3001;
+
+const uploadDir = path.join(__dirname, '../uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
 
 const parseId = (value: string) => {
   const id = Number(value);
@@ -182,6 +194,29 @@ const serializeComment = (comment: {
 app.use(helmet());
 app.use(cors({ origin: 'http://localhost:5173' }));
 app.use(express.json());
+app.use('/uploads', express.static(uploadDir));
+
+// Upload endpoint
+const storage = multer.diskStorage({
+  destination: (_: unknown, __: unknown, cb: (err: Error | null, path: string) => void) => {
+    cb(null, uploadDir);
+  },
+  filename: (_: unknown, file: { originalname: string }, cb: (err: Error | null, filename: string) => void) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + '-' + file.originalname);
+  }
+});
+const upload = multer({ storage, limits: { fileSize: 100 * 1024 * 1024 } });
+
+app.post('/api/upload', upload.single('file'), (req, res) => {
+  const file = req.file;
+  if (!file) {
+    res.status(400).json({ error: 'No file uploaded' });
+    return;
+  }
+  const url = `/uploads/${file.filename}`;
+  res.json({ url, filename: file.filename });
+});
 
 // Routes
 app.get('/', (_req, res) => {
@@ -220,10 +255,20 @@ app.get('/', (_req, res) => {
       '/api/notifications/:id/read',
       '/api/notifications/users/:userId/read-all',
       '/api/orders',
+      '/api/orders/:id/refund',
       '/api/admin/overview',
+      '/api/courses/:id/status',
+      '/api/instructors',
+      '/api/instructors/:id/students',
+      '/api/instructors/:id/analytics',
+      '/api/analytics',
       '/api/progress [PATCH]',
       '/api/quizzes/:id',
+      '/api/quizzes/:id/questions',
+      '/api/quizzes/:id/questions [POST]',
+      '/api/quizzes/:quizId/questions/:questionId [PATCH|DELETE]',
       '/api/quizzes/:id/attempts',
+      '/api/quizzes/:id/attempts/:attemptId/grade',
       '/api/assignments',
       '/api/assignments/:id/submissions',
     ],
@@ -1979,6 +2024,467 @@ app.get('/api/admin/overview', async (_req, res) => {
         courses: coursesCount,
         revenue,
         pending_courses: pendingCoursesCount,
+      },
+    });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.patch('/api/courses/:id/status', async (req, res) => {
+  const courseId = parseId(req.params.id);
+  const { trang_thai } = req.body as { trang_thai?: string };
+  const status = courseStatuses.find((value) => value === trang_thai);
+
+  if (!courseId || !status) {
+    res.status(400).json({ error: 'Invalid status payload' });
+    return;
+  }
+
+  try {
+    const course = await prisma.course.update({
+      where: { id: courseId },
+      data: { status },
+      include: {
+        instructor: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
+        category: { select: { id: true, name: true } },
+      },
+    });
+
+    res.json({ course: serializeCourse(course) });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.get('/api/instructors', async (_req, res) => {
+  try {
+    const instructors = await prisma.user.findMany({
+      where: { role: 'giang_vien' },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        avatarUrl: true,
+        bio: true,
+        joinedAt: true,
+      },
+    });
+
+    res.json({
+      giang_viens: instructors.map((i) => ({
+        id: i.id,
+        ten_dang_nhap: i.username,
+        email: i.email,
+        ten: i.firstName,
+        ho: i.lastName,
+        anh_dai_dien: i.avatarUrl,
+        gioi_thieu: i.bio,
+        ngay_tham_gia: i.joinedAt.toISOString(),
+      })),
+    });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.get('/api/instructors/:id/students', async (req, res) => {
+  const instructorId = parseId(req.params.id);
+
+  if (!instructorId) {
+    res.status(400).json({ error: 'Invalid instructor id' });
+    return;
+  }
+
+  try {
+    const enrollments = await prisma.enrollment.findMany({
+      where: {
+        course: { instructorId },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            avatarUrl: true,
+            joinedAt: true,
+          },
+        },
+        course: {
+          select: { id: true, title: true },
+        },
+      },
+      orderBy: { enrolledAt: 'desc' },
+    });
+
+    const studentMap = new Map<number, {
+      id: number;
+      ten_dang_nhap: string;
+      email: string;
+      ten: string;
+      ho: string;
+      anh_dai_dien: string | null;
+      ngay_tham_gia: string;
+      khoa_hoc: Array<{ id: number; tieu_de: string; ngay_dang_ky: string }>;
+    }>();
+
+    for (const e of enrollments) {
+      if (!studentMap.has(e.user.id)) {
+        studentMap.set(e.user.id, {
+          id: e.user.id,
+          ten_dang_nhap: e.user.username,
+          email: e.user.email,
+          ten: e.user.firstName,
+          ho: e.user.lastName,
+          anh_dai_dien: e.user.avatarUrl,
+          ngay_tham_gia: e.user.joinedAt.toISOString(),
+          khoa_hoc: [],
+        });
+      }
+      studentMap.get(e.user.id)!.khoa_hoc.push({
+        id: e.course.id,
+        tieu_de: e.course.title,
+        ngay_dang_ky: e.enrolledAt.toISOString(),
+      });
+    }
+
+    res.json({ hoc_vien: Array.from(studentMap.values()) });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.get('/api/instructors/:id/analytics', async (req, res) => {
+  const instructorId = parseId(req.params.id);
+
+  if (!instructorId) {
+    res.status(400).json({ error: 'Invalid instructor id' });
+    return;
+  }
+
+  try {
+    const courses = await prisma.course.findMany({
+      where: { instructorId },
+      select: {
+        id: true,
+        title: true,
+        enrolledCount: true,
+        price: true,
+      },
+    });
+
+    const courseIds = courses.map((c) => c.id);
+
+const [orders, recentEnrollments] = await Promise.all([
+      prisma.order.findMany({
+        where: {
+          status: 'success',
+          items: { some: { courseId: { in: courseIds } } },
+        },
+        select: { totalAmount: true, orderedAt: true },
+      }),
+      prisma.enrollment.findMany({
+        where: { course: { instructorId } },
+        include: {
+          course: { select: { title: true } },
+          user: { select: { firstName: true, lastName: true } },
+        },
+        orderBy: { enrolledAt: 'desc' },
+        take: 10,
+      }),
+    ]);
+
+    const revenue = orders.reduce((sum, o) => sum + o.totalAmount, 0);
+    const totalStudents = courses.reduce((sum, c) => sum + c.enrolledCount, 0);
+
+    res.json({
+      tong_doanh_thu: revenue,
+      tong_hoc_vien: totalStudents,
+      so_khoa_hoc: courses.length,
+      khoa_hoc: courses.map((c) => ({
+        id: c.id,
+        tieu_de: c.title,
+        so_luong_da_dang_ky: c.enrolledCount,
+        gia: c.price,
+        doanh_thu: c.enrolledCount * c.price,
+      })),
+      dang_ky_gan_day: recentEnrollments.map((e) => ({
+        ho_ten: `${e.user.firstName} ${e.user.lastName}`.trim(),
+        khoa_hoc: e.course.title,
+        ngay_dang_ky: e.enrolledAt.toISOString(),
+      })),
+    });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.get('/api/analytics', async (_req, res) => {
+  try {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const [totalUsers, totalCourses, pendingCourses, approvedCourses, totalOrders, recentOrders] = await Promise.all([
+      prisma.user.count(),
+      prisma.course.count(),
+      prisma.course.count({ where: { status: 'pending' } }),
+      prisma.course.count({ where: { status: 'approved' } }),
+      prisma.order.count(),
+      prisma.order.findMany({
+        where: { orderedAt: { gte: thirtyDaysAgo } },
+        select: { totalAmount: true, status: true, orderedAt: true },
+        orderBy: { orderedAt: 'asc' },
+      }),
+    ]);
+
+    const revenueByDay = new Map<string, number>();
+    let totalRevenue = 0;
+
+    for (const o of recentOrders) {
+      if (o.status === 'success') {
+        totalRevenue += o.totalAmount;
+        const day = o.orderedAt.toISOString().split('T')[0];
+        revenueByDay.set(day, (revenueByDay.get(day) || 0) + o.totalAmount);
+      }
+    }
+
+    const chartData = Array.from(revenueByDay.entries()).map(([ngay, doanh_thu]) => ({
+      ngay,
+      doanh_thu,
+    }));
+
+    res.json({
+      tong_nguoi_dung: totalUsers,
+      tong_khoa_hoc: totalCourses,
+      khoa_chờ_duyệt: pendingCourses,
+      khoa_da_duyet: approvedCourses,
+      tong_don_hang: totalOrders,
+      tong_doanh_thu: totalRevenue,
+      bieu_do_doanh_thu: chartData,
+    });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.patch('/api/orders/:id/refund', async (req, res) => {
+  const orderId = parseId(req.params.id);
+
+  if (!orderId) {
+    res.status(400).json({ error: 'Invalid order id' });
+    return;
+  }
+
+  try {
+    const order = await prisma.order.update({
+      where: { id: orderId },
+      data: { status: 'refunded' },
+      include: {
+        user: { select: { id: true, firstName: true, lastName: true } },
+        items: { include: { course: { select: { id: true, title: true } } } },
+        payments: true,
+      },
+    });
+
+    for (const item of order.items) {
+      await prisma.course.update({
+        where: { id: item.courseId },
+        data: { enrolledCount: { decrement: 1 } },
+      });
+    }
+
+    res.json({
+      don_hang: {
+        id: order.id,
+        nguoi_dung_id: order.userId,
+        tong_tien: order.totalAmount,
+        trang_thai: order.status,
+        ngay_dat: order.orderedAt.toISOString(),
+        items: order.items.map((item) => ({
+          id: item.id,
+          khoa_hoc_id: item.courseId,
+          khoa_hoc: { id: item.course.id, tieu_de: item.course.title },
+        })),
+      },
+    });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.get('/api/quizzes/:id/questions', async (req, res) => {
+  const quizId = parseId(req.params.id);
+
+  if (!quizId) {
+    res.status(400).json({ error: 'Invalid quiz id' });
+    return;
+  }
+
+  try {
+    const questions = await prisma.quizQuestion.findMany({
+      where: { quizId },
+      orderBy: { id: 'asc' },
+    });
+
+    res.json({
+      cau_hoi: questions.map((q) => ({
+        id: q.id,
+        quiz_id: q.quizId,
+        cau_hoi: q.question,
+        lua_chon: q.options,
+        dap_an_dung: q.correctAnswer,
+      })),
+    });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.post('/api/quizzes/:id/questions', async (req, res) => {
+  const quizId = parseId(req.params.id);
+  const { cau_hoi, lua_chon, dap_an_dung } = req.body as {
+    cau_hoi?: string;
+    lua_chon?: string[];
+    dap_an_dung?: string;
+  };
+
+  const question = cau_hoi?.trim();
+  const options = Array.isArray(lua_chon) ? lua_chon : [];
+  const correctAnswer = dap_an_dung?.trim();
+
+  if (!quizId || !question || options.length === 0 || !correctAnswer) {
+    res.status(400).json({ error: 'Invalid question payload' });
+    return;
+  }
+
+  try {
+    const newQuestion = await prisma.quizQuestion.create({
+      data: {
+        quizId,
+        question,
+        options,
+        correctAnswer,
+      },
+    });
+
+    await prisma.quiz.update({
+      where: { id: quizId },
+      data: { questionCount: { increment: 1 } },
+    });
+
+    res.status(201).json({
+      cau_hoi: {
+        id: newQuestion.id,
+        quiz_id: newQuestion.quizId,
+        cau_hoi: newQuestion.question,
+        lua_chon: newQuestion.options,
+        dap_an_dung: newQuestion.correctAnswer,
+      },
+    });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.patch('/api/quizzes/:quizId/questions/:questionId', async (req, res) => {
+  const questionId = parseId(req.params.questionId);
+  const { cau_hoi, lua_chon, dap_an_dung } = req.body as Record<string, unknown>;
+
+  if (!questionId) {
+    res.status(400).json({ error: 'Invalid question id' });
+    return;
+  }
+
+  try {
+    const question = await prisma.quizQuestion.update({
+      where: { id: questionId },
+      data: {
+        question: typeof cau_hoi === 'string' ? cau_hoi.trim() : undefined,
+        options: Array.isArray(lua_chon) ? lua_chon : undefined,
+        correctAnswer: typeof dap_an_dung === 'string' ? dap_an_dung.trim() : undefined,
+      },
+    });
+
+    res.json({
+      cau_hoi: {
+        id: question.id,
+        quiz_id: question.quizId,
+        cau_hoi: question.question,
+        lua_chon: question.options,
+        dap_an_dung: question.correctAnswer,
+      },
+    });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.delete('/api/quizzes/:quizId/questions/:questionId', async (req, res) => {
+  const questionId = parseId(req.params.questionId);
+  const quizId = parseId(req.params.quizId);
+
+  if (!questionId || !quizId) {
+    res.status(400).json({ error: 'Invalid ids' });
+    return;
+  }
+
+  try {
+    await prisma.quizQuestion.delete({ where: { id: questionId } });
+
+    await prisma.quiz.update({
+      where: { id: quizId },
+      data: { questionCount: { decrement: 1 } },
+    });
+
+    res.status(204).send();
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.patch('/api/quizzes/:id/attempts/:attemptId/grade', async (req, res) => {
+  const attemptId = parseId(req.params.attemptId);
+  const { diem, nhan_xet } = req.body as { diem?: number; nhan_xet?: string };
+  const score = typeof diem === 'number' ? diem : undefined;
+  const feedback = typeof nhan_xet === 'string' ? nhan_xet.trim() : undefined;
+
+  if (!attemptId || typeof score !== 'number') {
+    res.status(400).json({ error: 'Invalid grade payload' });
+    return;
+  }
+
+  try {
+    const attempt = await prisma.quizAttempt.update({
+      where: { id: attemptId },
+      data: { score, feedback: feedback ?? null },
+      include: {
+        user: { select: { id: true, firstName: true, lastName: true } },
+        quiz: { select: { id: true, title: true } },
+      },
+    });
+
+    res.json({
+      ket_qua: {
+        id: attempt.id,
+        quiz_id: attempt.quizId,
+        nguoi_dung_id: attempt.userId,
+        diem: attempt.score,
+        nhan_xet: attempt.feedback,
+        ngay_lam: attempt.takenAt.toISOString(),
+        user: {
+          id: attempt.user.id,
+          ten: attempt.user.firstName,
+          ho: attempt.user.lastName,
+        },
+        quiz: {
+          id: attempt.quiz.id,
+          tieu_de: attempt.quiz.title,
+        },
       },
     });
   } catch (error) {
