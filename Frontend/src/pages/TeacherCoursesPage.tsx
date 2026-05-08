@@ -1,9 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit2, Trash2, BookOpen, Users, Eye } from 'lucide-react';
-import { Card, Button, Badge, SearchInput, Loader } from '../components/common';
+import { Plus, Edit2, Trash2, BookOpen, Users, Eye, Filter } from 'lucide-react';
+import { Card, Button, Badge, SearchInput, Loader, Modal } from '../components/common';
 import { useAuth } from '../contexts/AuthContext';
-import { getCourses, createCourse, updateCourse, deleteCourse } from '../api';
+import { getTeacherCourses, deleteCourse } from '../api';
+
+const STATUS_LABELS: Record<string, string> = {
+  draft: 'Bản nháp',
+  pending: 'Chờ duyệt',
+  approved: 'Đã duyệt',
+  rejected: 'Bị từ chối',
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  draft: 'default',
+  pending: 'warning',
+  approved: 'success',
+  rejected: 'danger',
+};
 
 export const TeacherCoursesPage: React.FC = () => {
   const navigate = useNavigate();
@@ -11,22 +25,24 @@ export const TeacherCoursesPage: React.FC = () => {
   const [courses, setCourses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [showFilterModal, setShowFilterModal] = useState(false);
+
+  const fetchCourses = async () => {
+    setLoading(true);
+    try {
+      const { courses: data } = await getTeacherCourses();
+      setCourses(data || []);
+    } catch (error) {
+      console.error('Error fetching courses:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchCourses = async () => {
-      if (!user?.id) return;
-      setLoading(true);
-      try {
-        const { courses: data } = await getCourses({ instructorId: user.id });
-        setCourses(data || []);
-      } catch (error) {
-        console.error('Error fetching courses:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchCourses();
-  }, [user?.id]);
+  }, []);
 
   const handleDelete = async (id: number) => {
     if (!confirm('Bạn có chắc muốn xóa khóa học này?')) return;
@@ -35,12 +51,20 @@ export const TeacherCoursesPage: React.FC = () => {
       setCourses(courses.filter(c => c.id !== id));
     } catch (error) {
       console.error('Error deleting:', error);
+      alert('Xóa thất bại');
     }
   };
 
-  const filteredCourses = courses.filter(c => 
-    c.tieu_de?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredCourses = courses.filter(c => {
+    const matchesSearch = !searchQuery || c.tieu_de?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = !statusFilter || c.trang_thai === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
+  const statusCounts = courses.reduce((acc, c) => {
+    acc[c.trang_thai] = (acc[c.trang_thai] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
 
   if (loading) return <Loader />;
 
@@ -58,13 +82,38 @@ export const TeacherCoursesPage: React.FC = () => {
           </Button>
         </div>
 
-        <Card className="p-4">
-          <SearchInput
-            value={searchQuery}
-            onChange={setSearchQuery}
-            placeholder="Tìm kiếm khóa học..."
-          />
-        </Card>
+        <div className="flex gap-3 items-center">
+          <div className="flex-1">
+            <SearchInput
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Tìm kiếm khóa học..."
+            />
+          </div>
+          <Button variant="outline" onClick={() => setShowFilterModal(true)}>
+            <Filter className="w-4 h-4" />
+            Lọc {statusFilter && <Badge variant="primary" size="sm">{STATUS_LABELS[statusFilter]}</Badge>}
+          </Button>
+        </div>
+
+        {/* Status counts */}
+        <div className="flex gap-3 text-sm">
+          <button
+            onClick={() => setStatusFilter('')}
+            className={`px-3 py-1.5 rounded-full border-2 transition-all ${!statusFilter ? 'border-[#49B6E5] bg-[#49B6E5]/10 text-[#49B6E5]' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}
+          >
+            Tất cả ({courses.length})
+          </button>
+          {Object.entries(STATUS_LABELS).map(([status, label]) => (
+            <button
+              key={status}
+              onClick={() => setStatusFilter(statusFilter === status ? '' : status)}
+              className={`px-3 py-1.5 rounded-full border-2 transition-all ${statusFilter === status ? 'border-[#49B6E5] bg-[#49B6E5]/10 text-[#49B6E5]' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}
+            >
+              {label} ({statusCounts[status] || 0})
+            </button>
+          ))}
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredCourses.map((course: any) => (
@@ -79,16 +128,21 @@ export const TeacherCoursesPage: React.FC = () => {
                   <h3 className="font-['Comfortaa', cursive] text-[#263D5B] line-clamp-2">
                     {course.tieu_de}
                   </h3>
-                  <Badge variant={course.trang_thai === 'approved' ? 'success' : course.trang_thai === 'completed' ? 'success' : course.trang_thai === 'pending' ? 'warning' : 'default'}>
-                    {course.trang_thai === 'approved' ? 'Đã duyệt' : course.trang_thai === 'completed' ? 'Hoàn thành' : course.trang_thai === 'pending' ? 'Chờ duyệt' : 'Bản nháp'}
+                  <Badge variant={STATUS_COLORS[course.trang_thai] || 'default'} size="sm">
+                    {STATUS_LABELS[course.trang_thai] || course.trang_thai}
                   </Badge>
                 </div>
-                <div className="flex items-center gap-2 text-sm text-gray-500 mb-3">
+                <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
                   <Users className="w-4 h-4" />
                   <span>{course.so_luong_da_dang_ky || 0} học viên</span>
                 </div>
+                <div className="flex items-center gap-2 text-xs text-gray-400 mb-3">
+                  <span>{course.so_chuong || 0} chương</span>
+                  <span>•</span>
+                  <span>{course.tong_bai_hoc || 0} bài học</span>
+                </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => { console.log('Edit click, course id:', course.id); navigate(`/teacher/courses/${course.id}/edit`); }}>
+                  <Button variant="outline" size="sm" onClick={() => navigate(`/teacher/courses/${course.id}/edit`)}>
                     <Edit2 className="w-4 h-4" />
                   </Button>
                   <Button variant="outline" size="sm" onClick={() => navigate(`/learn/${course.id}`)}>
@@ -106,13 +160,39 @@ export const TeacherCoursesPage: React.FC = () => {
         {filteredCourses.length === 0 && (
           <div className="text-center py-12">
             <BookOpen className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500">Chưa có khóa học nào</p>
-            <Button variant="primary" className="mt-4" onClick={() => navigate('/teacher/courses/new')}>
-              Tạo khóa học đầu tiên
-            </Button>
+            <p className="text-gray-500">
+              {statusFilter ? 'Không có khóa học nào ở trạng thái này' : 'Chưa có khóa học nào'}
+            </p>
+            {!statusFilter && (
+              <Button variant="primary" className="mt-4" onClick={() => navigate('/teacher/courses/new')}>
+                Tạo khóa học đầu tiên
+              </Button>
+            )}
           </div>
         )}
       </div>
+
+      {/* Filter Modal */}
+      <Modal open={showFilterModal} onClose={() => setShowFilterModal(false)} title="Lọc khóa học">
+        <div className="space-y-3">
+          <p className="font-['Comfortaa', cursive] text-sm text-gray-600">Chọn trạng thái:</p>
+          {Object.entries(STATUS_LABELS).map(([status, label]) => (
+            <button
+              key={status}
+              onClick={() => {
+                setStatusFilter(statusFilter === status ? '' : status);
+                setShowFilterModal(false);
+              }}
+              className={`w-full p-3 rounded-[8px] border-2 text-left transition-all ${statusFilter === status ? 'border-[#49B6E5] bg-[#49B6E5]/10' : 'border-gray-200 hover:border-gray-300'}`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-['Comfortaa', cursive]">{label}</span>
+                <span className="text-sm text-gray-500">({statusCounts[status] || 0})</span>
+              </div>
+            </button>
+          ))}
+        </div>
+      </Modal>
     </div>
   );
 };

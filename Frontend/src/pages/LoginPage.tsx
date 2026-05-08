@@ -9,16 +9,20 @@ export const LoginPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    
-    const success = await login(email, password);
-    if (success) {
-      const userJson = localStorage.getItem('lms_auth_user');
+    setIsLoading(true);
+
+    const result = await login(email, password);
+    setIsLoading(false);
+
+    if (result.success) {
+      const userJson = localStorage.getItem('user');
       if (userJson) {
         const user = JSON.parse(userJson);
         if (user.vai_tro === 'giang_vien') {
@@ -32,7 +36,7 @@ export const LoginPage: React.FC = () => {
         navigate('/');
       }
     } else {
-      setError('Email hoặc mật khẩu không đúng');
+      setError(result.error || 'Email hoặc mật khẩu không đúng');
     }
   };
 
@@ -97,8 +101,8 @@ export const LoginPage: React.FC = () => {
               </Link>
             </div>
 
-            <Button type="submit" variant="primary" className="w-full">
-              Đăng nhập
+            <Button type="submit" variant="primary" className="w-full" disabled={isLoading}>
+              {isLoading ? 'Đang đăng nhập...' : 'Đăng nhập'}
             </Button>
           </form>
 

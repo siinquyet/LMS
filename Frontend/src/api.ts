@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:3001';
+const API_BASE = '';
 
 const getHeaders = (includeAuth = true) => {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -19,6 +19,13 @@ const handleResponse = async (res: Response) => {
   return res.json();
 };
 
+export class ApiError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
 // Auth
 export const login = async (email: string, password: string) => {
   const res = await fetch(`${API_BASE}/api/auth/login`, {
@@ -26,8 +33,17 @@ export const login = async (email: string, password: string) => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
   });
-  const data = await handleResponse(res);
-  if (data.user) localStorage.setItem('user', JSON.stringify(data.user));
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ error: 'Request failed' }));
+    throw new ApiError(res.status, error.error || 'Request failed');
+  }
+  const data = await res.json();
+  if (data.user) {
+    localStorage.setItem('user', JSON.stringify(data.user));
+    if (data.accessToken) {
+      localStorage.setItem('token', data.accessToken);
+    }
+  }
   return data;
 };
 
@@ -102,6 +118,17 @@ export const deleteCategory = async (id: number) => {
   return res.ok ? {} : handleResponse(res);
 };
 
+// Teacher Courses
+export const getTeacherCourses = async () => {
+  const res = await fetch(`${API_BASE}/api/teacher/courses`, { headers: getHeaders() });
+  return handleResponse(res);
+};
+
+export const getTeacherCourse = async (id: number) => {
+  const res = await fetch(`${API_BASE}/api/teacher/courses/${id}`, { headers: getHeaders() });
+  return handleResponse(res);
+};
+
 // Courses
 export const getCourses = async (params?: { categoryId?: number; instructorId?: number; search?: string; status?: string }) => {
   const query = new URLSearchParams();
@@ -142,6 +169,14 @@ export const deleteCourse = async (id: number) => {
     headers: getHeaders(),
   });
   return res.ok ? {} : handleResponse(res);
+};
+
+export const submitCourse = async (id: number) => {
+  const res = await fetch(`${API_BASE}/api/courses/${id}/submit`, {
+    method: 'POST',
+    headers: getHeaders(),
+  });
+  return handleResponse(res);
 };
 
 export const updateCourseStatus = async (id: number, trang_thai: string) => {
@@ -205,6 +240,24 @@ export const deleteLesson = async (id: number) => {
     headers: getHeaders(),
   });
   return res.ok ? {} : handleResponse(res);
+};
+
+export const reorderChapters = async (courseId: number, chapterIds: number[]) => {
+  const res = await fetch(`${API_BASE}/api/courses/${courseId}/chapters/reorder`, {
+    method: 'PATCH',
+    headers: getHeaders(),
+    body: JSON.stringify({ chapterIds }),
+  });
+  return handleResponse(res);
+};
+
+export const reorderLessons = async (chapterId: number, lessonIds: number[]) => {
+  const res = await fetch(`${API_BASE}/api/chapters/${chapterId}/lessons/reorder`, {
+    method: 'PATCH',
+    headers: getHeaders(),
+    body: JSON.stringify({ lessonIds }),
+  });
+  return handleResponse(res);
 };
 
 // Comments

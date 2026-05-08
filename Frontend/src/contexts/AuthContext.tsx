@@ -5,7 +5,7 @@ import {
   useEffect,
   useState,
 } from "react";
-import { login as apiLogin, logout as apiLogout, getCurrentUser } from "../api";
+import { login as apiLogin, logout as apiLogout, getCurrentUser, ApiError } from "../api";
 
 export interface User {
   id: number;
@@ -21,7 +21,7 @@ export type UserRole = 'hoc_vien' | 'giang_vien' | 'admin';
 
 interface AuthContextType {
   user: User | null;
-  login: (username: string, password: string) => Promise<boolean>;
+  login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   isLoading: boolean;
   isStudent: boolean;
@@ -52,7 +52,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const login = async (
     username: string,
     password: string,
-  ): Promise<boolean> => {
+  ): Promise<{ success: boolean; error?: string }> => {
     try {
       const result = await apiLogin(username, password);
       if (result.user) {
@@ -67,12 +67,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         };
         setUser(userData);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
-        return true;
+        return { success: true };
       }
-      return false;
+      return { success: false, error: 'Đăng nhập thất bại' };
     } catch (error) {
       console.error('Login error:', error);
-      return false;
+      if (error instanceof ApiError) {
+        if (error.status === 401) {
+          return { success: false, error: 'Email hoặc mật khẩu không đúng' };
+        }
+        return { success: false, error: error.message };
+      }
+      return { success: false, error: 'Đăng nhập thất bại' };
     }
   };
 

@@ -11,6 +11,7 @@ enum Role {
   hoc_vien
   giang_vien
   admin
+  super_admin
 }
 
 enum CourseStatus {
@@ -48,6 +49,170 @@ enum NotificationType {
   error
 }
 
+enum Permission {
+  MANAGE_COURSES
+  MANAGE_USERS
+  VIEW_ANALYTICS
+  APPROVE_COURSES
+  MANAGE_ORDERS
+  MANAGE_PAYOUTS
+  VIEW_REPORTS
+  MANAGE_SETTINGS
+  MANAGE_ORGANIZATIONS
+  MANAGE_PERMISSIONS
+}
+
+enum UserStatus {
+  active
+  inactive
+  suspended
+}
+
+model Organization {
+  id        Int       @id @default(autoincrement())
+  name      String    @map("ten")
+  slug      String    @unique @map("slug")
+  domain    String?   @map("domain")
+  isActive  Boolean   @default(true) @map("dang_hoat_dong")
+  isDefault Boolean   @default(false) @map("mac_dinh")
+  createdAt DateTime  @default(now()) @map("ngay_tao")
+  updatedAt DateTime  @updatedAt @map("ngay_cap_nhat")
+  settings  OrganizationSettings?
+  users     User[]
+  courses   Course[]
+  categories Category[]
+  orders    Order[]
+  enrollments Enrollment[]
+  notifications Notification[]
+  forumTopics ForumTopic[]
+  forumReplies ForumReply[]
+  chapters Chapter[]
+  lessons Lesson[]
+  comments Comment[]
+  quizzes Quiz[]
+  quizQuestions QuizQuestion[]
+  quizAttempts QuizAttempt[]
+  assignments Assignment[]
+  assignmentSubmissions AssignmentSubmission[]
+  progress Progress[]
+  orderItems OrderItem[]
+  payments Payment[]
+  carts    Cart[]
+  rolePermissions RolePermission[]
+  userPermissions UserPermission[]
+  auditLogs AuditLog[]
+
+  @@map("to_chuc")
+}
+
+model OrganizationSettings {
+  id              Int          @id @default(autoincrement())
+  organizationId  Int          @unique @map("to_chuc_id")
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  platformName    String       @default("LMS Platform") @map("ten_nen_tang")
+  logo            String?      @map("logo")
+  commissionRate  Float        @default(30) @map("ti_le_hoa_hong")
+  refundDays      Int          @default(7) @map("so_ngay_hoan_tien")
+  contactEmail    String?      @map("email_lien_he")
+  theme           String?      @map("giao_dien")
+  createdAt       DateTime     @default(now()) @map("ngay_tao")
+  updatedAt       DateTime     @updatedAt @map("ngay_cap_nhat")
+
+  @@map("cai_dat_to_chuc")
+}
+
+model RolePermission {
+  id              Int          @id @default(autoincrement())
+  role            Role         @map("vai_tro")
+  permission      Permission   @map("quyen")
+  organizationId  Int          @map("to_chuc_id")
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  createdAt       DateTime    @default(now()) @map("ngay_tao")
+
+  @@unique([role, permission, organizationId])
+  @@index([organizationId])
+  @@map("vai_tro_quyen")
+}
+
+model UserPermission {
+  id              Int          @id @default(autoincrement())
+  userId          Int          @map("nguoi_dung_id")
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission      Permission   @map("quyen")
+  granted        Boolean      @default(true) @map("duoc_cap")
+  organizationId  Int          @map("to_chuc_id")
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  createdAt       DateTime    @default(now()) @map("ngay_tao")
+
+  @@unique([userId, permission, organizationId])
+  @@index([userId])
+  @@index([organizationId])
+  @@map("nguoi_dung_quyen")
+}
+
+model PasswordResetToken {
+  id              Int          @id @default(autoincrement())
+  userId          Int          @map("nguoi_dung_id")
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token           String       @unique @map("token")
+  expiresAt       DateTime     @map("het_han")
+  used            Boolean      @default(false) @map("da_su_dung")
+  createdAt       DateTime     @default(now()) @map("ngay_tao")
+
+  @@index([userId])
+  @@index([token])
+  @@map("token_dat_lai_mat_khau")
+}
+
+model EmailVerificationToken {
+  id              Int          @id @default(autoincrement())
+  userId          Int          @unique @map("nguoi_dung_id")
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token           String       @unique @map("token")
+  expiresAt       DateTime     @map("het_han")
+  createdAt       DateTime     @default(now()) @map("ngay_tao")
+
+  @@index([token])
+  @@map("token_xac_thuc_email")
+}
+
+model RefreshToken {
+  id              Int          @id @default(autoincrement())
+  userId          Int          @map("nguoi_dung_id")
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token           String       @unique @map("token")
+  expiresAt       DateTime     @map("het_han")
+  isRevoked       Boolean      @default(false) @map("da_thu_hoi")
+  userAgent       String?      @map("trinh_duyet")
+  ipAddress       String?      @map("dia_chi_ip")
+  createdAt       DateTime     @default(now()) @map("ngay_tao")
+  lastUsedAt      DateTime?    @map("lan_su_dung_cuoi")
+
+  @@index([userId])
+  @@index([token])
+  @@map("refresh_token")
+}
+
+model AuditLog {
+  id              Int          @id @default(autoincrement())
+  userId          Int?         @map("nguoi_dung_id")
+  user            User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action          String       @map("hanh_dong")
+  resource        String       @map("tai_nguyen")
+  resourceId      String?      @map("tai_nguyen_id")
+  details         Json?        @map("chi_tiet")
+  ipAddress       String?      @map("dia_chi_ip")
+  userAgent       String?      @map("trinh_duyet")
+  organizationId  Int          @map("to_chuc_id")
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  createdAt       DateTime     @default(now()) @map("ngay_tao")
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([createdAt])
+  @@map("nhat_ky_he_thong")
+}
+
 model User {
   id                    Int                    @id @default(autoincrement())
   username              String                 @unique @map("ten_dang_nhap")
@@ -60,11 +225,18 @@ model User {
   address               String?                @map("dia_chi")
   bio                   String?                @map("gioi_thieu")
   isLocked              Boolean                @default(false) @map("bi_khoa")
+  isEmailVerified       Boolean                @default(false) @map("email_da_xac_thuc")
+  status                UserStatus             @default(active) @map("trang_thai")
+  lastLoginAt           DateTime?              @map("lan_dang_nhap_cuoi")
   joinedAt              DateTime               @map("ngay_tham_gia")
   role                  Role                   @default(hoc_vien) @map("vai_tro")
+  tokenVersion          Int                    @default(0) @map("token_version")
+  organizationId        Int                    @map("to_chuc_id")
+  organization          Organization           @relation(fields: [organizationId], references: [id])
   taughtCourses         Course[]               @relation("CourseInstructor")
   enrollments           Enrollment[]
   lessonProgress        Progress[]
+  cart             Cart[]
   orders                Order[]
   comments              Comment[]
   notifications         Notification[]
@@ -72,15 +244,25 @@ model User {
   forumReplies          ForumReply[]
   quizAttempts          QuizAttempt[]
   assignmentSubmissions AssignmentSubmission[]
+  userPermissions       UserPermission[]
+  refreshTokens         RefreshToken[]
+  passwordResetTokens   PasswordResetToken[]
+  emailVerification    EmailVerificationToken?
+  auditLogs             AuditLog[]
 
+  @@index([organizationId])
   @@map("nguoi_dung")
 }
 
 model Category {
-  id      Int      @id @default(autoincrement())
-  name    String   @map("ten")
-  courses Course[]
+  id            Int        @id @default(autoincrement())
+  name          String     @map("ten")
+  organizationId Int       @map("to_chuc_id")
+  organization  Organization @relation(fields: [organizationId], references: [id])
+  courses       Course[]
 
+  @@unique([name, organizationId])
+  @@index([organizationId])
   @@map("danh_muc")
 }
 
@@ -103,232 +285,300 @@ model Course {
   lessonCount          Int?           @map("so_bai_hoc")
   rating               Float?         @map("xep_hang")
   learningOutcomes     Json?          @map("what_you_learn")
+  organizationId        Int            @map("to_chuc_id")
   instructor           User           @relation("CourseInstructor", fields: [instructorId], references: [id])
   category             Category       @relation(fields: [categoryId], references: [id])
+  organization         Organization   @relation(fields: [organizationId], references: [id])
   chapters             Chapter[]
   enrollments          Enrollment[]
   orderItems           OrderItem[]
+  cart                 Cart[]
   forumTopics          ForumTopic[]
 
   @@index([instructorId])
   @@index([categoryId])
+  @@index([organizationId])
   @@map("khoa_hoc")
 }
 
 model Chapter {
-  id       Int      @id @default(autoincrement())
-  courseId Int      @map("khoa_hoc_id")
-  title    String   @map("tieu_de")
-  order    Int      @map("thu_tu")
-  course   Course   @relation(fields: [courseId], references: [id])
-  lessons  Lesson[]
+  id            Int        @id @default(autoincrement())
+  courseId      Int        @map("khoa_hoc_id")
+  title         String     @map("tieu_de")
+  order         Int        @map("thu_tu")
+  organizationId Int       @map("to_chuc_id")
+  course        Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  organization  Organization @relation(fields: [organizationId], references: [id])
+  lessons       Lesson[]
 
   @@index([courseId])
+  @@index([organizationId])
   @@map("chuong_hoc")
 }
 
 model Lesson {
-  id          Int          @id @default(autoincrement())
-  chapterId   Int          @map("chuong_hoc_id")
-  title       String       @map("tieu_de")
-  videoUrl    String?      @map("video_url")
-  type        LessonType   @default(video) @map("loai")
-  duration    String?      @map("thoi_luong")
-  content     String?      @map("noi_dung")
-  chapter     Chapter      @relation(fields: [chapterId], references: [id])
-  progress    Progress[]
-  comments    Comment[]
-  quizzes     Quiz[]
-  assignments Assignment[]
+  id            Int          @id @default(autoincrement())
+  chapterId     Int          @map("chuong_hoc_id")
+  title         String       @map("tieu_de")
+  order         Int          @default(0) @map("thu_tu")
+  videoUrl      String?      @map("video_url")
+  type          LessonType   @default(video) @map("loai")
+  duration      String?      @map("thoi_luong")
+  content       String?      @map("noi_dung")
+  organizationId Int         @map("to_chuc_id")
+  chapter       Chapter      @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  organization  Organization @relation(fields: [organizationId], references: [id])
+  progress      Progress[]
+  comments      Comment[]
+  quizzes       Quiz[]
+  assignments   Assignment[]
 
   @@index([chapterId])
+  @@index([organizationId])
   @@map("bai_hoc")
 }
 
 model Enrollment {
-  id         Int      @id @default(autoincrement())
-  userId     Int      @map("nguoi_dung_id")
-  courseId   Int      @map("khoa_hoc_id")
-  enrolledAt DateTime @map("ngay_dang_ky")
-  user       User     @relation(fields: [userId], references: [id])
-  course     Course   @relation(fields: [courseId], references: [id])
+  id             Int        @id @default(autoincrement())
+  userId         Int        @map("nguoi_dung_id")
+  courseId       Int        @map("khoa_hoc_id")
+  enrolledAt     DateTime   @default(now()) @map("ngay_dang_ky")
+  completedAt    DateTime?  @map("ngay_hoan_thanh")
+  organizationId Int        @map("to_chuc_id")
+  user           User       @relation(fields: [userId], references: [id])
+  course         Course     @relation(fields: [courseId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id])
 
   @@unique([userId, courseId])
   @@index([courseId])
+  @@index([userId])
+  @@index([organizationId])
   @@map("dang_ky_khoa_hoc")
 }
 
 model Progress {
-  userId      Int       @map("nguoi_dung_id")
-  lessonId    Int       @map("bai_hoc_id")
-  completed   Boolean   @default(false) @map("da_hoan_thanh")
-  completedAt DateTime? @map("ngay_hoan_thanh")
-  user        User      @relation(fields: [userId], references: [id])
-  lesson      Lesson    @relation(fields: [lessonId], references: [id])
+  userId         Int       @map("nguoi_dung_id")
+  lessonId       Int       @map("bai_hoc_id")
+  completed      Boolean   @default(false) @map("da_hoan_thanh")
+  completedAt    DateTime? @map("ngay_hoan_thanh")
+  organizationId Int       @map("to_chuc_id")
+  user           User      @relation(fields: [userId], references: [id])
+  lesson         Lesson    @relation(fields: [lessonId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id])
 
   @@id([userId, lessonId])
   @@index([lessonId])
+  @@index([organizationId])
   @@map("tien_do_bai_hoc")
 }
 
+model Cart {
+  id             Int         @id @default(autoincrement())
+  userId         Int         @map("nguoi_dung_id")
+  courseId       Int         @map("khoa_hoc_id")
+  organizationId Int         @map("to_chuc_id")
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course         Course      @relation(fields: [courseId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime    @default(now()) @map("ngay_tao")
+
+  @@unique([userId, courseId])
+  @@index([userId])
+  @@index([organizationId])
+  @@map("gio_hang")
+}
+
 model Order {
-  id          Int          @id @default(autoincrement())
-  userId      Int          @map("nguoi_dung_id")
-  totalAmount Int          @map("tong_tien")
-  status      OrderStatus  @default(pending) @map("trang_thai")
-  orderedAt   DateTime     @map("ngay_dat")
-  user        User         @relation(fields: [userId], references: [id])
-  items       OrderItem[]
-  payments    Payment[]
+  id             Int          @id @default(autoincrement())
+  userId         Int          @map("nguoi_dung_id")
+  totalAmount    Int          @map("tong_tien")
+  status         OrderStatus  @default(pending) @map("trang_thai")
+  orderedAt      DateTime     @default(now()) @map("ngay_dat")
+  organizationId Int          @map("to_chuc_id")
+  user           User         @relation(fields: [userId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  items          OrderItem[]
+  payments       Payment[]
 
   @@index([userId])
+  @@index([organizationId])
   @@map("don_hang")
 }
 
 model OrderItem {
-  id      Int    @id @default(autoincrement())
-  orderId Int    @map("don_hang_id")
-  courseId Int   @map("khoa_hoc_id")
-  price   Int    @map("gia")
-  order   Order  @relation(fields: [orderId], references: [id])
-  course  Course @relation(fields: [courseId], references: [id])
+  id             Int        @id @default(autoincrement())
+  orderId        Int        @map("don_hang_id")
+  courseId       Int        @map("khoa_hoc_id")
+  price          Int        @map("gia")
+  organizationId Int        @map("to_chuc_id")
+  order          Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  course         Course     @relation(fields: [courseId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id])
 
   @@index([orderId])
   @@index([courseId])
+  @@index([organizationId])
   @@map("chi_tiet_don_hang")
 }
 
 model Payment {
-  id          Int           @id @default(autoincrement())
-  orderId     Int           @map("don_hang_id")
-  amount      Int           @map("so_tien")
-  status      PaymentStatus @default(pending) @map("trang_thai")
-  paidAt      DateTime      @map("ngay_thanh_toan")
-  method      String?       @map("phuong_thuc")
-  order       Order         @relation(fields: [orderId], references: [id])
+  id             Int           @id @default(autoincrement())
+  orderId        Int           @map("don_hang_id")
+  amount         Int           @map("so_tien")
+  status         PaymentStatus @default(pending) @map("trang_thai")
+  paidAt         DateTime?     @map("ngay_thanh_toan")
+  method         String?       @map("phuong_thuc")
+  organizationId Int           @map("to_chuc_id")
+  order          Order         @relation(fields: [orderId], references: [id])
+  organization   Organization  @relation(fields: [organizationId], references: [id])
 
   @@index([orderId])
+  @@index([organizationId])
   @@map("thanh_toan")
 }
 
 model Comment {
-  id        Int       @id @default(autoincrement())
-  lessonId  Int       @map("bai_hoc_id")
-  userId    Int       @map("nguoi_dung_id")
-  content   String    @map("noi_dung")
-  parentId  Int?      @map("parent_id")
-  createdAt DateTime  @map("ngay_tao")
-  lesson    Lesson    @relation(fields: [lessonId], references: [id])
-  user      User      @relation(fields: [userId], references: [id])
-  parent    Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
-  replies   Comment[] @relation("CommentReplies")
+  id             Int       @id @default(autoincrement())
+  lessonId       Int       @map("bai_hoc_id")
+  userId         Int       @map("nguoi_dung_id")
+  content        String    @map("noi_dung")
+  parentId       Int?      @map("parent_id")
+  createdAt      DateTime  @map("ngay_tao")
+  organizationId Int       @map("to_chuc_id")
+  lesson         Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  user           User      @relation(fields: [userId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  parent         Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
+  replies        Comment[] @relation("CommentReplies")
 
   @@index([lessonId])
   @@index([userId])
   @@index([parentId])
+  @@index([organizationId])
   @@map("binh_luan")
 }
 
 model Notification {
-  id        Int              @id @default(autoincrement())
-  userId    Int              @map("nguoi_dung_id")
-  title     String           @map("tieu_de")
-  content   String           @map("noi_dung")
-  type      NotificationType @map("loai")
-  isRead    Boolean          @default(false) @map("da_doc")
-  createdAt DateTime         @map("ngay_tao")
-  link      String?
-  user      User             @relation(fields: [userId], references: [id])
+  id             Int              @id @default(autoincrement())
+  userId         Int              @map("nguoi_dung_id")
+  title          String           @map("tieu_de")
+  content        String           @map("noi_dung")
+  type           NotificationType @map("loai")
+  isRead         Boolean          @default(false) @map("da_doc")
+  createdAt      DateTime         @map("ngay_tao")
+  link           String?
+  organizationId Int               @map("to_chuc_id")
+  user           User             @relation(fields: [userId], references: [id])
+  organization   Organization     @relation(fields: [organizationId], references: [id])
 
   @@index([userId])
+  @@index([organizationId])
   @@map("thong_bao")
 }
 
 model ForumTopic {
-  id         Int          @id @default(autoincrement())
-  userId     Int          @map("nguoi_dung_id")
-  title      String       @map("tieu_de")
-  content    String       @map("noi_dung")
-  courseId   Int?         @map("khoa_hoc_id")
-  viewCount  Int          @default(0) @map("luot_xem")
-  replyCount Int          @default(0) @map("luot_tra_loi")
-  createdAt  DateTime     @map("ngay_tao")
-  updatedAt  DateTime     @map("ngay_cap_nhat")
-  user       User         @relation(fields: [userId], references: [id])
-  course     Course?      @relation(fields: [courseId], references: [id])
-  replies    ForumReply[]
+  id             Int          @id @default(autoincrement())
+  userId         Int          @map("nguoi_dung_id")
+  title          String       @map("tieu_de")
+  content        String       @map("noi_dung")
+  courseId       Int?         @map("khoa_hoc_id")
+  viewCount      Int          @default(0) @map("luot_xem")
+  replyCount     Int          @default(0) @map("luot_tra_loi")
+  createdAt      DateTime     @map("ngay_tao")
+  updatedAt      DateTime     @map("ngay_cap_nhat")
+  organizationId Int          @map("to_chuc_id")
+  user           User         @relation(fields: [userId], references: [id])
+  course         Course?      @relation(fields: [courseId], references: [id])
+  organization   Organization  @relation(fields: [organizationId], references: [id])
+  replies        ForumReply[]
 
   @@index([userId])
   @@index([courseId])
+  @@index([organizationId])
   @@map("chu_de_forum")
 }
 
 model ForumReply {
-  id        Int        @id @default(autoincrement())
-  topicId   Int        @map("topic_id")
-  userId    Int        @map("nguoi_dung_id")
-  content   String     @map("noi_dung")
-  createdAt DateTime   @map("ngay_tao")
-  topic     ForumTopic @relation(fields: [topicId], references: [id])
-  user      User       @relation(fields: [userId], references: [id])
+  id             Int        @id @default(autoincrement())
+  topicId        Int        @map("topic_id")
+  userId         Int        @map("nguoi_dung_id")
+  content        String     @map("noi_dung")
+  createdAt      DateTime   @map("ngay_tao")
+  organizationId Int        @map("to_chuc_id")
+  topic          ForumTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  user           User       @relation(fields: [userId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id])
 
   @@index([topicId])
   @@index([userId])
+  @@index([organizationId])
   @@map("tra_loi_forum")
 }
 
 model Quiz {
-  id           Int            @id @default(autoincrement())
-  lessonId     Int            @map("bai_hoc_id")
-  title        String         @map("tieu_de")
-  timeLimit    Int?           @map("thoi_gian_lam")
-  questionCount Int           @map("so_cau_hoi")
-  lesson       Lesson         @relation(fields: [lessonId], references: [id])
-  questions    QuizQuestion[]
-  attempts     QuizAttempt[]
+  id              Int            @id @default(autoincrement())
+  lessonId        Int            @map("bai_hoc_id")
+  title           String         @map("tieu_de")
+  timeLimit       Int?           @map("thoi_gian_lam")
+  questionCount   Int            @map("so_cau_hoi")
+  organizationId  Int            @map("to_chuc_id")
+  lesson          Lesson         @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  organization    Organization   @relation(fields: [organizationId], references: [id])
+  questions       QuizQuestion[]
+  attempts        QuizAttempt[]
 
   @@index([lessonId])
+  @@index([organizationId])
   @@map("bai_kiem_tra")
 }
 
 model QuizQuestion {
-  id            Int      @id @default(autoincrement())
-  quizId        Int      @map("quiz_id")
-  question      String   @map("cau_hoi")
-  options       Json     @map("lua_chon")
-  correctAnswer String   @map("dap_an_dung")
-  quiz          Quiz     @relation(fields: [quizId], references: [id])
+  id             Int      @id @default(autoincrement())
+  quizId         Int      @map("quiz_id")
+  question       String   @map("cau_hoi")
+  options        Json     @map("lua_chon")
+  correctAnswer  String   @map("dap_an_dung")
+  organizationId Int      @map("to_chuc_id")
+  quiz           Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id])
 
   @@index([quizId])
+  @@index([organizationId])
   @@map("cau_hoi")
 }
 
 model QuizAttempt {
-  id        Int       @id @default(autoincrement())
-  quizId    Int       @map("quiz_id")
-  userId    Int       @map("nguoi_dung_id")
-  score     Float     @map("diem")
-  feedback  String?   @map("nhan_xet")
-  takenAt   DateTime  @map("ngay_lam")
-  quiz      Quiz      @relation(fields: [quizId], references: [id])
-  user      User      @relation(fields: [userId], references: [id])
+  id             Int       @id @default(autoincrement())
+  quizId         Int       @map("quiz_id")
+  userId         Int       @map("nguoi_dung_id")
+  score          Float     @map("diem")
+  feedback       String?   @map("nhan_xet")
+  takenAt        DateTime  @map("ngay_lam")
+  organizationId Int       @map("to_chuc_id")
+  quiz           Quiz      @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  user           User      @relation(fields: [userId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id])
 
   @@index([quizId])
   @@index([userId])
+  @@index([organizationId])
   @@map("lam_bai")
 }
 
 model Assignment {
-  id           Int                    @id @default(autoincrement())
-  lessonId      Int                   @map("bai_hoc_id")
-  title         String                @map("tieu_de")
-  description   String                @map("mo_ta")
-  isRequired    Boolean               @default(false) @map("bat_buoc")
-  dueAt         DateTime?             @map("han_nop")
-  lesson        Lesson                @relation(fields: [lessonId], references: [id])
-  submissions   AssignmentSubmission[]
+  id             Int                    @id @default(autoincrement())
+  lessonId       Int                   @map("bai_hoc_id")
+  title          String                @map("tieu_de")
+  description    String                @map("mo_ta")
+  isRequired     Boolean               @default(false) @map("bat_buoc")
+  dueAt          DateTime?             @map("han_nop")
+  organizationId Int                   @map("to_chuc_id")
+  lesson         Lesson                @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  organization   Organization          @relation(fields: [organizationId], references: [id])
+  submissions    AssignmentSubmission[]
 
   @@index([lessonId])
+  @@index([organizationId])
   @@map("bai_tap")
 }
 
@@ -341,10 +591,13 @@ model AssignmentSubmission {
   score          Float?      @map("diem")
   feedback       String?     @map("nhan_xet")
   submittedAt    DateTime    @map("ngay_nop")
-  assignment     Assignment  @relation(fields: [assignmentId], references: [id])
+  organizationId Int         @map("to_chuc_id")
+  assignment     Assignment  @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
   user           User        @relation(fields: [userId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id])
 
   @@unique([assignmentId, userId])
   @@index([userId])
+  @@index([organizationId])
   @@map("nop_bai")
 }

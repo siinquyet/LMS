@@ -6,6 +6,15 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
+import bcrypt from 'bcryptjs';
+import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from './utils/jwt.js';
+import { globalRateLimiter, authRateLimiter, loginRateLimiter } from './middleware/rateLimit.js';
+import { errorHandler } from './middleware/errorHandler.js';
+import { authenticate, requireRole } from './middleware/auth.js';
+import { resolveTenant, requireTenant } from './middleware/tenant.js';
+import { loginSchema, registerSchema, refreshTokenSchema } from './utils/validators.js';
+import { authHandlers } from './utils/authHandlers.js';
+import { ZodError } from 'zod';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -14,7 +23,6 @@ const app = express();
 const prisma = new PrismaClient();
 const courseStatuses = ['draft', 'completed', 'pending', 'approved', 'rejected'] as const;
 const lessonTypes = ['video', 'document', 'quiz', 'exercise'] as const;
-const roles = ['hoc_vien', 'giang_vien', 'admin'] as const;
 
 const PORT = process.env.PORT || 3001;
 
@@ -36,21 +44,11 @@ const parseOptionalId = (value: unknown) => {
   return parseId(value);
 };
 
-const splitFullName = (fullName: string) => {
-  const parts = fullName.trim().split(/\s+/).filter(Boolean);
-
-  if (parts.length === 0) {
-    return { firstName: '', lastName: '' };
+const getOrganizationId = (req: express.Request): number | null => {
+  if (req.tenant?.organizationId && req.tenant.organizationId > 0) {
+    return req.tenant.organizationId;
   }
-
-  if (parts.length === 1) {
-    return { firstName: parts[0], lastName: '' };
-  }
-
-  return {
-    firstName: parts[parts.length - 1],
-    lastName: parts.slice(0, -1).join(' '),
-  };
+  return req.user?.organizationId ?? null;
 };
 
 const serializeUser = (user: {
@@ -64,8 +62,12 @@ const serializeUser = (user: {
   address: string | null;
   bio: string | null;
   isLocked: boolean;
+  isEmailVerified: boolean;
+  status: string;
+  lastLoginAt: Date | null;
   joinedAt: Date;
   role: string;
+  organizationId: number;
 }) => ({
   id: user.id,
   ten_dang_nhap: user.username,
@@ -77,8 +79,12 @@ const serializeUser = (user: {
   dia_chi: user.address,
   gioi_thieu: user.bio,
   bi_khoa: user.isLocked,
+  email_da_xac_thuc: user.isEmailVerified,
+  trang_thai: user.status,
+  lan_dang_nhap_cuoi: user.lastLoginAt?.toISOString() ?? null,
   ngay_tham_gia: user.joinedAt.toISOString(),
   vai_tro: user.role,
+  to_chuc_id: user.organizationId,
 });
 
 const serializeCourse = (course: {
@@ -99,7 +105,7 @@ const serializeCourse = (course: {
   rating: number | null;
   requirements: unknown;
   learningOutcomes: unknown;
-  instructor?: { id: number; firstName: string; lastName: string; avatarUrl: string | null };
+  instructor?: { id: number; firstName: string; lastName: string; avatarUrl?: string | null; email?: string };
   category?: { id: number; name: string };
 }) => ({
   id: course.id,
@@ -195,6 +201,10 @@ app.use(helmet());
 app.use(cors({ origin: 'http://localhost:5173' }));
 app.use(express.json());
 app.use('/uploads', express.static(uploadDir));
+app.use(globalRateLimiter);
+
+// Error handler (must be last)
+app.use(errorHandler);
 
 // Upload endpoint
 const storage = multer.diskStorage({
@@ -251,12 +261,15 @@ app.get('/', (_req, res) => {
       '/api/forum/replies/:id [DELETE]',
       '/api/enrollments',
       '/api/my-courses/:userId',
-      '/api/notifications/:userId',
-      '/api/notifications/:id/read',
-      '/api/notifications/users/:userId/read-all',
+      '/api/my-enrollments',
+'/api/cart',
+      '/api/cart/:courseId',
+      '/api/checkout',
       '/api/orders',
+      '/api/orders/:id/pay',
       '/api/orders/:id/refund',
       '/api/admin/overview',
+      '/api/my-enrollments',
       '/api/courses/:id/status',
       '/api/instructors',
       '/api/instructors/:id/students',
@@ -279,28 +292,24 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'OK', message: 'Backend running!' });
 });
 
-app.post('/api/auth/login', async (req, res) => {
-  const { email, username, password } = req.body as {
-    email?: string;
-    username?: string;
-    password?: string;
-  };
-
-  const credential = (email ?? username ?? '').trim();
-
-  if (!credential || !password) {
-    res.status(400).json({ error: 'Email/username and password are required' });
-    return;
-  }
-
+app.post('/api/auth/login', loginRateLimiter, async (req, res) => {
   try {
+    const data = loginSchema.parse(req.body);
+    const credential = (data.email ?? data.username ?? '').trim();
+
     const user = await prisma.user.findFirst({
       where: {
         OR: [{ email: credential }, { username: credential }],
       },
     });
 
-    if (!user || user.password !== password) {
+    if (!user) {
+      res.status(401).json({ error: 'Invalid credentials' });
+      return;
+    }
+
+    const isValidPassword = await bcrypt.compare(data.password, user.password);
+    if (!isValidPassword) {
       res.status(401).json({ error: 'Invalid credentials' });
       return;
     }
@@ -310,40 +319,58 @@ app.post('/api/auth/login', async (req, res) => {
       return;
     }
 
-    res.json({ user: serializeUser(user) });
+    const accessToken = generateAccessToken({ userId: user.id, role: user.role, organizationId: user.organizationId });
+    const refreshToken = generateRefreshToken({ userId: user.id, tokenVersion: user.tokenVersion });
+
+    res.json({
+      user: serializeUser(user),
+      accessToken,
+      refreshToken,
+    });
   } catch (error) {
-    handleError(res, error);
+    if (error instanceof ZodError) {
+      res.status(400).json({ error: 'Validation error', details: error.issues });
+      return;
+    }
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-app.post('/api/auth/register', async (req, res) => {
-  const { name, email, password, username, role } = req.body as {
-    name?: string;
-    email?: string;
-    password?: string;
-    username?: string;
-    role?: string;
-  };
-
-  const normalizedName = name?.trim() ?? '';
-  const normalizedEmail = email?.trim().toLowerCase();
-  const normalizedUsername = username?.trim() || normalizedEmail?.split('@')[0] || '';
-  const normalizedRole = roles.find((value) => value === role) ?? 'hoc_vien';
-
-  if (!normalizedName || !normalizedEmail || !password) {
-    res.status(400).json({ error: 'Name, email and password are required' });
-    return;
-  }
-
-  if (password.length < 6) {
-    res.status(400).json({ error: 'Password must be at least 6 characters' });
-    return;
-  }
-
+app.post('/api/auth/register', authRateLimiter, async (req, res) => {
   try {
+    const data = registerSchema.parse(req.body);
+
+    let defaultOrg = await prisma.organization.findFirst({
+      where: { isDefault: true },
+    });
+
+    if (!defaultOrg) {
+      defaultOrg = await prisma.organization.create({
+        data: {
+          name: 'Default Organization',
+          slug: 'default',
+          isDefault: true,
+        },
+      });
+
+      await prisma.organizationSettings.create({
+        data: {
+          organizationId: defaultOrg.id,
+        },
+      });
+
+      const { seedRolePermissions } = await import('./utils/permissions.js');
+      await seedRolePermissions(defaultOrg.id);
+    }
+
     const existingUser = await prisma.user.findFirst({
       where: {
-        OR: [{ email: normalizedEmail }, { username: normalizedUsername }],
+        organizationId: defaultOrg.id,
+        OR: [
+          { email: data.email },
+          { username: data.username || data.email.split('@')[0] },
+        ],
       },
       select: { id: true },
     });
@@ -353,35 +380,308 @@ app.post('/api/auth/register', async (req, res) => {
       return;
     }
 
-    const { firstName, lastName } = splitFullName(normalizedName);
+    const hashedPassword = await bcrypt.hash(data.password, 10);
+    const normalizedUsername = data.username?.trim() || data.email.split('@')[0] || '';
+    const normalizedName = data.name.trim();
+    const parts = normalizedName.split(/\s+/).filter(Boolean);
+    const firstName = parts.length === 1 ? parts[0] : parts.slice(0, -1).join(' ') || normalizedName;
+    const lastName = parts.length > 1 ? parts[parts.length - 1] : '';
 
     const user = await prisma.user.create({
       data: {
         username: normalizedUsername,
-        email: normalizedEmail,
-        password,
+        email: data.email.toLowerCase(),
+        password: hashedPassword,
         firstName,
         lastName,
         joinedAt: new Date(),
-        role: normalizedRole,
+        role: data.role || 'hoc_vien',
+        organizationId: defaultOrg.id,
       },
     });
 
-    res.status(201).json({ user: serializeUser(user) });
+    const { generateToken } = await import('./utils/permissions.js');
+    const verificationToken = generateToken();
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    await prisma.emailVerificationToken.create({
+      data: {
+        userId: user.id,
+        token: verificationToken,
+        expiresAt,
+      },
+    });
+
+    const accessToken = generateAccessToken({ userId: user.id, role: user.role, organizationId: user.organizationId });
+    const refreshToken = generateRefreshToken({ userId: user.id, tokenVersion: user.tokenVersion });
+
+    res.status(201).json({
+      user: serializeUser(user),
+      accessToken,
+      refreshToken,
+      verificationToken,
+    });
   } catch (error) {
-    handleError(res, error);
+    if (error instanceof ZodError) {
+      res.status(400).json({ error: 'Validation error', details: error.issues });
+      return;
+    }
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-app.get('/api/users', async (_req, res) => {
+app.get('/api/users', authenticate, resolveTenant, requireRole('admin', 'super_admin'), async (req, res) => {
   try {
+    const where = req.tenant?.isSuperAdmin && req.tenant.organizationId > 0
+      ? { organizationId: req.tenant.organizationId }
+      : req.user?.organizationId ? { organizationId: req.user.organizationId } : {};
+
     const users = await prisma.user.findMany({
+      where,
       orderBy: { id: 'asc' },
     });
 
     res.json({ users: users.map(serializeUser) });
   } catch (error) {
-    handleError(res, error);
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/auth/refresh', async (req, res) => {
+  try {
+    const data = refreshTokenSchema.parse(req.body);
+
+    const payload = verifyRefreshToken(data.refreshToken);
+
+    const user = await prisma.user.findUnique({
+      where: { id: payload.userId },
+      select: { id: true, role: true, tokenVersion: true, organizationId: true },
+    });
+
+    if (!user || user.tokenVersion !== payload.tokenVersion) {
+      res.status(401).json({ error: 'Invalid refresh token' });
+      return;
+    }
+
+    const accessToken = generateAccessToken({ userId: user.id, role: user.role, organizationId: user.organizationId });
+    const refreshToken = generateRefreshToken({ userId: user.id, tokenVersion: user.tokenVersion });
+
+    res.json({ accessToken, refreshToken });
+  } catch (error) {
+    if (error instanceof ZodError) {
+      res.status(400).json({ error: 'Validation error', details: error.issues });
+      return;
+    }
+    res.status(401).json({ error: 'Invalid refresh token' });
+  }
+});
+
+app.post('/api/auth/logout', authenticate, async (req, res) => {
+  try {
+    await prisma.user.update({
+      where: { id: req.user!.userId },
+      data: { tokenVersion: { increment: 1 } },
+    });
+
+    res.json({ message: 'Logged out successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/auth/forgot-password', authHandlers.forgotPassword);
+
+app.post('/api/auth/reset-password', authHandlers.resetPassword);
+
+app.post('/api/auth/verify-email', authHandlers.verifyEmail);
+
+app.post('/api/auth/resend-verification', authHandlers.resendVerification);
+
+app.get('/api/auth/sessions', ...authHandlers.getSessions);
+
+app.delete('/api/auth/sessions/:sessionId', ...authHandlers.revokeSession);
+
+app.post('/api/auth/revoke-all-sessions', ...authHandlers.revokeAllSessions);
+
+app.get('/api/auth/permissions', ...authHandlers.getPermissions);
+
+app.get('/api/organizations', authenticate, async (req, res) => {
+  try {
+    if (req.user?.role !== 'super_admin') {
+      const org = await prisma.organization.findUnique({
+        where: { id: req.user!.organizationId },
+        include: { settings: true },
+      });
+      if (!org) {
+        res.status(404).json({ error: 'Organization not found' });
+        return;
+      }
+      res.json({ organization: org });
+      return;
+    }
+
+    const organizations = await prisma.organization.findMany({
+      include: { settings: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json({ organizations });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/organizations', authenticate, async (req, res) => {
+  try {
+    if (req.user?.role !== 'super_admin') {
+      res.status(403).json({ error: 'Only super admin can create organizations' });
+      return;
+    }
+
+    const { ten, slug, domain } = req.body as { ten?: string; slug?: string; domain?: string };
+
+    if (!ten || !slug) {
+      res.status(400).json({ error: 'Name and slug are required' });
+      return;
+    }
+
+    const existing = await prisma.organization.findUnique({ where: { slug } });
+    if (existing) {
+      res.status(409).json({ error: 'Slug already exists' });
+      return;
+    }
+
+    const organization = await prisma.organization.create({
+      data: {
+        name: ten,
+        slug,
+        domain,
+      },
+      include: { settings: true },
+    });
+
+    await prisma.organizationSettings.create({
+      data: { organizationId: organization.id },
+    });
+
+    res.status(201).json({ organization });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/api/organizations/:id', authenticate, async (req, res) => {
+  const orgId = parseId(req.params.id);
+  if (!orgId) {
+    res.status(400).json({ error: 'Invalid organization id' });
+    return;
+  }
+
+  try {
+    const organization = await prisma.organization.findUnique({
+      where: { id: orgId },
+      include: { settings: true },
+    });
+
+    if (!organization) {
+      res.status(404).json({ error: 'Organization not found' });
+      return;
+    }
+
+    res.json({ organization });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.patch('/api/organizations/:id', authenticate, async (req, res) => {
+  const orgId = parseId(req.params.id);
+  if (!orgId) {
+    res.status(400).json({ error: 'Invalid organization id' });
+    return;
+  }
+
+  try {
+    if (req.user?.role !== 'super_admin' && req.user?.organizationId !== orgId) {
+      res.status(403).json({ error: 'Not authorized' });
+      return;
+    }
+
+    const { ten, domain, isActive } = req.body as Record<string, unknown>;
+
+    const organization = await prisma.organization.update({
+      where: { id: orgId },
+      data: {
+        ...(typeof ten === 'string' && { name: ten }),
+        ...(typeof domain === 'string' && { domain }),
+        ...(typeof isActive === 'boolean' && { isActive }),
+      },
+      include: { settings: true },
+    });
+
+    res.json({ organization });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/api/organizations/:id/settings', authenticate, requireTenant, async (req, res) => {
+  const orgId = parseId(req.params.id);
+  if (!orgId) {
+    res.status(400).json({ error: 'Invalid organization id' });
+    return;
+  }
+
+  try {
+    const settings = await prisma.organizationSettings.findUnique({
+      where: { organizationId: orgId },
+    });
+
+    if (!settings) {
+      res.status(404).json({ error: 'Settings not found' });
+      return;
+    }
+
+    res.json({ settings });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.patch('/api/organizations/:id/settings', authenticate, requireTenant, async (req, res) => {
+  const orgId = parseId(req.params.id);
+  if (!orgId) {
+    res.status(400).json({ error: 'Invalid organization id' });
+    return;
+  }
+
+  try {
+    const { platformName, logo, commissionRate, refundDays, contactEmail, theme } = req.body as Record<string, unknown>;
+
+    const settings = await prisma.organizationSettings.upsert({
+      where: { organizationId: orgId },
+      create: { organizationId: orgId },
+      update: {
+        ...(typeof platformName === 'string' && { platformName }),
+        ...(typeof logo === 'string' && { logo }),
+        ...(typeof commissionRate === 'number' && { commissionRate }),
+        ...(typeof refundDays === 'number' && { refundDays }),
+        ...(typeof contactEmail === 'string' && { contactEmail }),
+        ...(typeof theme === 'string' && { theme }),
+      },
+    });
+
+    res.json({ settings });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -456,7 +756,7 @@ app.get('/api/categories', async (_req, res) => {
   }
 });
 
-app.post('/api/categories', async (req, res) => {
+app.post('/api/categories', authenticate, resolveTenant, async (req, res) => {
   const { ten } = req.body as { ten?: string };
   const name = ten?.trim();
 
@@ -465,14 +765,21 @@ app.post('/api/categories', async (req, res) => {
     return;
   }
 
+  const organizationId = getOrganizationId(req);
+  if (!organizationId) {
+    res.status(400).json({ error: 'Organization context required' });
+    return;
+  }
+
   try {
     const category = await prisma.category.create({
-      data: { name },
+      data: { name, organizationId },
     });
 
     res.status(201).json({ category: { id: category.id, ten: category.name } });
   } catch (error) {
-    handleError(res, error);
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -519,14 +826,12 @@ app.get('/api/courses', async (req, res) => {
     const categoryId = parseOptionalId(req.query.categoryId);
     const instructorId = parseOptionalId(req.query.instructorId);
     const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
-    const statusParam = typeof req.query.status === 'string' ? req.query.status : undefined;
-    const status = courseStatuses.find((value) => value === statusParam);
 
     const courses = await prisma.course.findMany({
       where: {
+        status: 'approved',
         ...(categoryId ? { categoryId } : {}),
         ...(instructorId ? { instructorId } : {}),
-        ...(status ? { status } : {}),
         ...(search
           ? {
               OR: [
@@ -558,6 +863,83 @@ app.get('/api/courses', async (req, res) => {
     res.json({ courses: courses.map(serializeCourse) });
   } catch (error) {
     handleError(res, error);
+  }
+});
+
+app.get('/api/teacher/courses', authenticate, resolveTenant, async (req, res) => {
+  try {
+    const statusParam = typeof req.query.status === 'string' ? req.query.status : undefined;
+    const status = courseStatuses.find((value) => value === statusParam);
+
+    const courses = await prisma.course.findMany({
+      where: {
+        instructorId: req.user!.userId,
+        organizationId: req.tenant?.organizationId || req.user!.organizationId,
+        ...(status ? { status } : {}),
+      },
+      include: {
+        category: { select: { id: true, name: true } },
+        chapters: {
+          include: {
+            lessons: { select: { id: true } },
+          },
+        },
+      },
+      orderBy: { id: 'desc' },
+    });
+
+    res.json({
+      courses: courses.map((course) => ({
+        ...serializeCourse(course),
+        so_chuong: course.chapters.length,
+        tong_bai_hoc: course.chapters.reduce((sum, ch) => sum + ch.lessons.length, 0),
+      })),
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/api/teacher/courses/:id', authenticate, resolveTenant, async (req, res) => {
+  const courseId = parseId(req.params.id);
+  if (!courseId) {
+    res.status(400).json({ error: 'Invalid course id' });
+    return;
+  }
+
+  try {
+    const course = await prisma.course.findFirst({
+      where: {
+        id: courseId,
+        instructorId: req.user!.userId,
+      },
+      include: {
+        category: true,
+        chapters: {
+          orderBy: { order: 'asc' },
+          include: {
+            lessons: {
+              orderBy: { id: 'asc' },
+              include: {
+                quizzes: { select: { id: true, title: true } },
+                assignments: { select: { id: true, title: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!course) {
+      res.status(404).json({ error: 'Course not found' });
+      return;
+    }
+
+    res.json({ course });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -705,7 +1087,7 @@ app.get('/api/lessons/:id/comments', async (req, res) => {
   }
 });
 
-app.post('/api/lessons/:id/comments', async (req, res) => {
+app.post('/api/lessons/:id/comments', authenticate, resolveTenant, async (req, res) => {
   const lessonId = parseId(req.params.id);
   const { nguoi_dung_id, noi_dung, parent_id } = req.body as {
     nguoi_dung_id?: number;
@@ -716,9 +1098,15 @@ app.post('/api/lessons/:id/comments', async (req, res) => {
   const userId = Number(nguoi_dung_id);
   const content = noi_dung?.trim();
   const parentId = parent_id == null ? null : Number(parent_id);
+  const organizationId = getOrganizationId(req);
 
   if (!lessonId || !Number.isInteger(userId) || !content) {
     res.status(400).json({ error: 'Invalid comment payload' });
+    return;
+  }
+
+  if (!organizationId) {
+    res.status(400).json({ error: 'Organization context required' });
     return;
   }
 
@@ -730,6 +1118,7 @@ app.post('/api/lessons/:id/comments', async (req, res) => {
         content,
         parentId: Number.isInteger(parentId) ? parentId : null,
         createdAt: new Date(),
+        organizationId,
       },
       include: {
         user: {
@@ -765,10 +1154,9 @@ app.delete('/api/comments/:id', async (req, res) => {
   }
 });
 
-app.post('/api/courses', async (req, res) => {
+app.post('/api/courses', authenticate, resolveTenant, async (req, res) => {
   const {
     tieu_de,
-    giang_vien_id,
     danh_muc_id,
     gia,
     so_luong_toi_da,
@@ -783,14 +1171,20 @@ app.post('/api/courses', async (req, res) => {
   } = req.body as Record<string, unknown>;
 
   const title = typeof tieu_de === 'string' ? tieu_de.trim() : '';
-  const instructorId = Number(giang_vien_id);
+  const instructorId = req.user!.userId;
   const categoryId = Number(danh_muc_id);
   const price = Number(gia);
   const maxStudents = so_luong_toi_da == null || so_luong_toi_da === '' ? null : Number(so_luong_toi_da);
   const status = courseStatuses.find((value) => value === trang_thai) ?? 'draft';
+  const organizationId = getOrganizationId(req);
 
-  if (!title || !Number.isInteger(instructorId) || !Number.isInteger(categoryId) || Number.isNaN(price)) {
+  if (!title || !Number.isInteger(categoryId) || Number.isNaN(price)) {
     res.status(400).json({ error: 'Invalid course payload' });
+    return;
+  }
+
+  if (!organizationId) {
+    res.status(400).json({ error: 'Organization context required' });
     return;
   }
 
@@ -811,6 +1205,7 @@ app.post('/api/courses', async (req, res) => {
         duration: typeof thoi_luong === 'string' ? thoi_luong : null,
         requirements: Array.isArray(requirements) ? requirements : undefined,
         learningOutcomes: Array.isArray(whatYouLearn) ? whatYouLearn : undefined,
+        organizationId,
       },
       include: {
         instructor: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
@@ -820,7 +1215,8 @@ app.post('/api/courses', async (req, res) => {
 
     res.status(201).json({ course: serializeCourse(course) });
   } catch (error) {
-    handleError(res, error);
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -899,12 +1295,59 @@ app.delete('/api/courses/:id', async (req, res) => {
   }
 });
 
-app.post('/api/courses/:id/chapters', async (req, res) => {
+app.patch('/api/courses/:id/chapters/reorder', authenticate, resolveTenant, async (req, res) => {
+  const courseId = parseId(req.params.id);
+  const { chapterIds } = req.body as { chapterIds?: number[] };
+  const organizationId = getOrganizationId(req);
+
+  if (!courseId || !Array.isArray(chapterIds)) {
+    res.status(400).json({ error: 'Invalid reorder payload' });
+    return;
+  }
+
+  if (!organizationId) {
+    res.status(400).json({ error: 'Organization context required' });
+    return;
+  }
+
+  try {
+    const course = await prisma.course.findFirst({
+      where: { id: courseId, instructorId: req.user!.userId },
+    });
+
+    if (!course) {
+      res.status(404).json({ error: 'Course not found' });
+      return;
+    }
+
+    await prisma.$transaction(
+      chapterIds.map((id, index) =>
+        prisma.chapter.update({
+          where: { id },
+          data: { order: index + 1 },
+        })
+      )
+    );
+
+    res.json({ message: 'Chapters reordered successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/courses/:id/chapters', authenticate, resolveTenant, async (req, res) => {
   const courseId = parseId(req.params.id);
   const { tieu_de, thu_tu } = req.body as { tieu_de?: string; thu_tu?: number };
+  const organizationId = getOrganizationId(req);
 
   if (!courseId || !tieu_de?.trim()) {
     res.status(400).json({ error: 'Invalid chapter payload' });
+    return;
+  }
+
+  if (!organizationId) {
+    res.status(400).json({ error: 'Organization context required' });
     return;
   }
 
@@ -914,6 +1357,7 @@ app.post('/api/courses/:id/chapters', async (req, res) => {
         courseId,
         title: tieu_de.trim(),
         order: typeof thu_tu === 'number' && Number.isInteger(thu_tu) ? thu_tu : 1,
+        organizationId,
       },
     });
 
@@ -926,21 +1370,43 @@ app.post('/api/courses/:id/chapters', async (req, res) => {
       },
     });
   } catch (error) {
-    handleError(res, error);
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-app.patch('/api/chapters/:id', async (req, res) => {
+app.patch('/api/chapters/:id', authenticate, resolveTenant, async (req, res) => {
   const chapterId = parseId(req.params.id);
   const { tieu_de, thu_tu } = req.body as { tieu_de?: string; thu_tu?: number };
+  const organizationId = getOrganizationId(req);
 
   if (!chapterId) {
     res.status(400).json({ error: 'Invalid chapter id' });
     return;
   }
 
+  if (!organizationId) {
+    res.status(400).json({ error: 'Organization context required' });
+    return;
+  }
+
   try {
-    const chapter = await prisma.chapter.update({
+    const chapter = await prisma.chapter.findFirst({
+      where: { id: chapterId, organizationId },
+      include: { course: { select: { instructorId: true } } },
+    });
+
+    if (!chapter) {
+      res.status(404).json({ error: 'Chapter not found' });
+      return;
+    }
+
+    if (chapter.course.instructorId !== req.user!.userId) {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
+
+    const updated = await prisma.chapter.update({
       where: { id: chapterId },
       data: {
         title: typeof tieu_de === 'string' ? tieu_de.trim() : undefined,
@@ -950,10 +1416,10 @@ app.patch('/api/chapters/:id', async (req, res) => {
 
     res.json({
       chapter: {
-        id: chapter.id,
-        khoa_hoc_id: chapter.courseId,
-        tieu_de: chapter.title,
-        thu_tu: chapter.order,
+        id: updated.id,
+        khoa_hoc_id: updated.courseId,
+        tieu_de: updated.title,
+        thu_tu: updated.order,
       },
     });
   } catch (error) {
@@ -961,15 +1427,36 @@ app.patch('/api/chapters/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/chapters/:id', async (req, res) => {
+app.delete('/api/chapters/:id', authenticate, resolveTenant, async (req, res) => {
   const chapterId = parseId(req.params.id);
+  const organizationId = getOrganizationId(req);
 
   if (!chapterId) {
     res.status(400).json({ error: 'Invalid chapter id' });
     return;
   }
 
+  if (!organizationId) {
+    res.status(400).json({ error: 'Organization context required' });
+    return;
+  }
+
   try {
+    const chapter = await prisma.chapter.findFirst({
+      where: { id: chapterId, organizationId },
+      include: { course: { select: { instructorId: true } } },
+    });
+
+    if (!chapter) {
+      res.status(404).json({ error: 'Chapter not found' });
+      return;
+    }
+
+    if (chapter.course.instructorId !== req.user!.userId) {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
+
     await prisma.chapter.delete({ where: { id: chapterId } });
     res.status(204).send();
   } catch (error) {
@@ -977,26 +1464,35 @@ app.delete('/api/chapters/:id', async (req, res) => {
   }
 });
 
-app.post('/api/chapters/:id/lessons', async (req, res) => {
+app.post('/api/chapters/:id/lessons', authenticate, resolveTenant, async (req, res) => {
   const chapterId = parseId(req.params.id);
   const { tieu_de, video_url, loai, thoi_luong, noi_dung } = req.body as Record<string, unknown>;
   const title = typeof tieu_de === 'string' ? tieu_de.trim() : '';
   const type = lessonTypes.find((value) => value === loai) ?? 'video';
+  const organizationId = getOrganizationId(req);
 
   if (!chapterId || !title) {
     res.status(400).json({ error: 'Invalid lesson payload' });
     return;
   }
 
+  if (!organizationId) {
+    res.status(400).json({ error: 'Organization context required' });
+    return;
+  }
+
   try {
+    const existingCount = await prisma.lesson.count({ where: { chapterId } });
     const lesson = await prisma.lesson.create({
       data: {
         chapterId,
         title,
+        order: existingCount + 1,
         videoUrl: typeof video_url === 'string' ? video_url : null,
         type,
         duration: typeof thoi_luong === 'string' ? thoi_luong : null,
         content: typeof noi_dung === 'string' ? noi_dung : null,
+        organizationId,
       },
     });
 
@@ -1005,6 +1501,7 @@ app.post('/api/chapters/:id/lessons', async (req, res) => {
         id: lesson.id,
         chuong_hoc_id: lesson.chapterId,
         tieu_de: lesson.title,
+        thu_tu: lesson.order,
         video_url: lesson.videoUrl,
         loai: lesson.type,
         thoi_luong: lesson.duration,
@@ -1012,21 +1509,43 @@ app.post('/api/chapters/:id/lessons', async (req, res) => {
       },
     });
   } catch (error) {
-    handleError(res, error);
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-app.patch('/api/lessons/:id', async (req, res) => {
+app.patch('/api/lessons/:id', authenticate, resolveTenant, async (req, res) => {
   const lessonId = parseId(req.params.id);
   const { tieu_de, video_url, loai, thoi_luong, noi_dung } = req.body as Record<string, unknown>;
+  const organizationId = getOrganizationId(req);
 
   if (!lessonId) {
     res.status(400).json({ error: 'Invalid lesson id' });
     return;
   }
 
+  if (!organizationId) {
+    res.status(400).json({ error: 'Organization context required' });
+    return;
+  }
+
   try {
-    const lesson = await prisma.lesson.update({
+    const lesson = await prisma.lesson.findFirst({
+      where: { id: lessonId, organizationId },
+      include: { chapter: { include: { course: { select: { instructorId: true } } } } },
+    });
+
+    if (!lesson) {
+      res.status(404).json({ error: 'Lesson not found' });
+      return;
+    }
+
+    if (lesson.chapter.course.instructorId !== req.user!.userId) {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
+
+    const updated = await prisma.lesson.update({
       where: { id: lessonId },
       data: {
         title: typeof tieu_de === 'string' ? tieu_de.trim() : undefined,
@@ -1034,18 +1553,20 @@ app.patch('/api/lessons/:id', async (req, res) => {
         type: lessonTypes.find((value) => value === loai) ?? undefined,
         duration: typeof thoi_luong === 'string' ? thoi_luong : undefined,
         content: typeof noi_dung === 'string' ? noi_dung : undefined,
+        order: typeof req.body.thu_tu === 'number' ? req.body.thu_tu : undefined,
       },
     });
 
     res.json({
       lesson: {
-        id: lesson.id,
-        chuong_hoc_id: lesson.chapterId,
-        tieu_de: lesson.title,
-        video_url: lesson.videoUrl,
-        loai: lesson.type,
-        thoi_luong: lesson.duration,
-        noi_dung: lesson.content,
+        id: updated.id,
+        chuong_hoc_id: updated.chapterId,
+        tieu_de: updated.title,
+        thu_tu: updated.order,
+        video_url: updated.videoUrl,
+        loai: updated.type,
+        thoi_luong: updated.duration,
+        noi_dung: updated.content,
       },
     });
   } catch (error) {
@@ -1053,19 +1574,87 @@ app.patch('/api/lessons/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/lessons/:id', async (req, res) => {
+app.delete('/api/lessons/:id', authenticate, resolveTenant, async (req, res) => {
   const lessonId = parseId(req.params.id);
+  const organizationId = getOrganizationId(req);
 
   if (!lessonId) {
     res.status(400).json({ error: 'Invalid lesson id' });
     return;
   }
 
+  if (!organizationId) {
+    res.status(400).json({ error: 'Organization context required' });
+    return;
+  }
+
   try {
+    const lesson = await prisma.lesson.findFirst({
+      where: { id: lessonId, organizationId },
+      include: { chapter: { include: { course: { select: { instructorId: true } } } } },
+    });
+
+    if (!lesson) {
+      res.status(404).json({ error: 'Lesson not found' });
+      return;
+    }
+
+    if (lesson.chapter.course.instructorId !== req.user!.userId) {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
+
     await prisma.lesson.delete({ where: { id: lessonId } });
     res.status(204).send();
   } catch (error) {
     handleError(res, error);
+  }
+});
+
+app.patch('/api/chapters/:id/lessons/reorder', authenticate, resolveTenant, async (req, res) => {
+  const chapterId = parseId(req.params.id);
+  const { lessonIds } = req.body as { lessonIds?: number[] };
+  const organizationId = getOrganizationId(req);
+
+  if (!chapterId || !Array.isArray(lessonIds)) {
+    res.status(400).json({ error: 'Invalid reorder payload' });
+    return;
+  }
+
+  if (!organizationId) {
+    res.status(400).json({ error: 'Organization context required' });
+    return;
+  }
+
+  try {
+    const chapter = await prisma.chapter.findFirst({
+      where: { id: chapterId, organizationId },
+      include: { course: { select: { instructorId: true } } },
+    });
+
+    if (!chapter) {
+      res.status(404).json({ error: 'Chapter not found' });
+      return;
+    }
+
+    if (chapter.course.instructorId !== req.user!.userId) {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
+
+    await prisma.$transaction(
+      lessonIds.map((id, index) =>
+        prisma.lesson.update({
+          where: { id },
+          data: { order: index + 1 },
+        })
+      )
+    );
+
+    res.json({ message: 'Lessons reordered successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1194,18 +1783,23 @@ app.get('/api/users/:userId/progress', async (req, res) => {
   }
 });
 
-app.patch('/api/progress', async (req, res) => {
-  const { nguoi_dung_id, bai_hoc_id, da_hoan_thanh } = req.body as {
-    nguoi_dung_id?: number;
+app.patch('/api/progress', authenticate, resolveTenant, async (req, res) => {
+  const { bai_hoc_id, da_hoan_thanh } = req.body as {
     bai_hoc_id?: number;
     da_hoan_thanh?: boolean;
   };
 
-  const userId = Number(nguoi_dung_id);
+  const userId = req.user!.userId;
   const lessonId = Number(bai_hoc_id);
+  const organizationId = getOrganizationId(req);
 
   if (!Number.isInteger(userId) || !Number.isInteger(lessonId) || typeof da_hoan_thanh !== 'boolean') {
     res.status(400).json({ error: 'Invalid progress payload' });
+    return;
+  }
+
+  if (!organizationId) {
+    res.status(400).json({ error: 'Organization context required' });
     return;
   }
 
@@ -1226,8 +1820,47 @@ app.patch('/api/progress', async (req, res) => {
         lessonId,
         completed: da_hoan_thanh,
         completedAt: da_hoan_thanh ? new Date() : null,
+        organizationId,
       },
     });
+
+    if (da_hoan_thanh) {
+      const lesson = await prisma.lesson.findFirst({
+        where: { id: lessonId, organizationId },
+        include: {
+          chapter: {
+            include: {
+              course: {
+                include: {
+                  chapters: { include: { lessons: true } },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (lesson) {
+        const totalLessons = lesson.chapter.course.chapters.reduce(
+          (sum, ch) => sum + ch.lessons.length, 0
+        );
+
+        const completedCount = await prisma.progress.count({
+          where: { userId, completed: true, organizationId },
+        });
+
+        if (completedCount >= totalLessons && totalLessons > 0) {
+          await prisma.enrollment.updateMany({
+            where: {
+              userId,
+              courseId: lesson.chapter.course.id,
+              completedAt: null,
+            },
+            data: { completedAt: new Date() },
+          });
+        }
+      }
+    }
 
     res.json({
       progress: {
@@ -1238,17 +1871,24 @@ app.patch('/api/progress', async (req, res) => {
       },
     });
   } catch (error) {
-    handleError(res, error);
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-app.post('/api/enrollments', async (req, res) => {
-  const { nguoi_dung_id, khoa_hoc_id } = req.body as { nguoi_dung_id?: number; khoa_hoc_id?: number };
-  const userId = Number(nguoi_dung_id);
+app.post('/api/enrollments', authenticate, resolveTenant, async (req, res) => {
+  const { khoa_hoc_id } = req.body as { khoa_hoc_id?: number };
+  const userId = req.user!.userId;
   const courseId = Number(khoa_hoc_id);
+  const organizationId = getOrganizationId(req);
 
   if (!Number.isInteger(userId) || !Number.isInteger(courseId)) {
     res.status(400).json({ error: 'Invalid enrollment payload' });
+    return;
+  }
+
+  if (!organizationId) {
+    res.status(400).json({ error: 'Organization context required' });
     return;
   }
 
@@ -1274,6 +1914,7 @@ app.post('/api/enrollments', async (req, res) => {
         userId,
         courseId,
         enrolledAt: new Date(),
+        organizationId,
       },
     });
 
@@ -1365,15 +2006,21 @@ app.get('/api/forum/topics', async (req, res) => {
   }
 });
 
-app.post('/api/forum/topics', async (req, res) => {
+app.post('/api/forum/topics', authenticate, resolveTenant, async (req, res) => {
   const { nguoi_dung_id, tieu_de, noi_dung, khoa_hoc_id } = req.body as Record<string, unknown>;
   const userId = Number(nguoi_dung_id);
   const title = typeof tieu_de === 'string' ? tieu_de.trim() : '';
   const content = typeof noi_dung === 'string' ? noi_dung.trim() : '';
   const courseId = khoa_hoc_id == null || khoa_hoc_id === '' ? null : Number(khoa_hoc_id);
+  const organizationId = getOrganizationId(req);
 
   if (!Number.isInteger(userId) || !title || !content) {
     res.status(400).json({ error: 'Invalid forum topic payload' });
+    return;
+  }
+
+  if (!organizationId) {
+    res.status(400).json({ error: 'Organization context required' });
     return;
   }
 
@@ -1388,6 +2035,7 @@ app.post('/api/forum/topics', async (req, res) => {
         replyCount: 0,
         createdAt: new Date(),
         updatedAt: new Date(),
+        organizationId,
       },
       include: {
         user: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
@@ -1409,7 +2057,8 @@ app.post('/api/forum/topics', async (req, res) => {
       },
     });
   } catch (error) {
-    handleError(res, error);
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1472,14 +2121,20 @@ app.get('/api/forum/topics/:id', async (req, res) => {
   }
 });
 
-app.post('/api/forum/topics/:id/replies', async (req, res) => {
+app.post('/api/forum/topics/:id/replies', authenticate, resolveTenant, async (req, res) => {
   const topicId = parseId(req.params.id);
   const { nguoi_dung_id, noi_dung } = req.body as Record<string, unknown>;
   const userId = Number(nguoi_dung_id);
   const content = typeof noi_dung === 'string' ? noi_dung.trim() : '';
+  const organizationId = getOrganizationId(req);
 
   if (!topicId || !Number.isInteger(userId) || !content) {
     res.status(400).json({ error: 'Invalid forum reply payload' });
+    return;
+  }
+
+  if (!organizationId) {
+    res.status(400).json({ error: 'Organization context required' });
     return;
   }
 
@@ -1490,6 +2145,7 @@ app.post('/api/forum/topics/:id/replies', async (req, res) => {
         userId,
         content,
         createdAt: new Date(),
+        organizationId,
       },
       include: {
         user: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
@@ -1516,7 +2172,8 @@ app.post('/api/forum/topics/:id/replies', async (req, res) => {
       },
     });
   } catch (error) {
-    handleError(res, error);
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1665,7 +2322,7 @@ app.get('/api/quizzes/:id', async (req, res) => {
   }
 });
 
-app.post('/api/quizzes/:id/attempts', async (req, res) => {
+app.post('/api/quizzes/:id/attempts', authenticate, resolveTenant, async (req, res) => {
   const quizId = parseId(req.params.id);
   const { nguoi_dung_id, answers } = req.body as {
     nguoi_dung_id?: number;
@@ -1673,9 +2330,15 @@ app.post('/api/quizzes/:id/attempts', async (req, res) => {
   };
 
   const userId = Number(nguoi_dung_id);
+  const organizationId = getOrganizationId(req);
 
   if (!quizId || !Number.isInteger(userId) || !Array.isArray(answers)) {
     res.status(400).json({ error: 'Invalid quiz attempt payload' });
+    return;
+  }
+
+  if (!organizationId) {
+    res.status(400).json({ error: 'Organization context required' });
     return;
   }
 
@@ -1700,6 +2363,7 @@ app.post('/api/quizzes/:id/attempts', async (req, res) => {
         userId,
         score,
         takenAt: new Date(),
+        organizationId,
       },
     });
 
@@ -1718,7 +2382,8 @@ app.post('/api/quizzes/:id/attempts', async (req, res) => {
       },
     });
   } catch (error) {
-    handleError(res, error);
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1795,7 +2460,7 @@ app.get('/api/assignments', async (req, res) => {
   }
 });
 
-app.post('/api/assignments/:id/submissions', async (req, res) => {
+app.post('/api/assignments/:id/submissions', authenticate, resolveTenant, async (req, res) => {
   const assignmentId = parseId(req.params.id);
   const { nguoi_dung_id, noi_dung, file_dinh_kem } = req.body as {
     nguoi_dung_id?: number;
@@ -1805,9 +2470,15 @@ app.post('/api/assignments/:id/submissions', async (req, res) => {
 
   const userId = Number(nguoi_dung_id);
   const content = noi_dung?.trim();
+  const organizationId = getOrganizationId(req);
 
   if (!assignmentId || !Number.isInteger(userId) || !content) {
     res.status(400).json({ error: 'Invalid assignment submission payload' });
+    return;
+  }
+
+  if (!organizationId) {
+    res.status(400).json({ error: 'Organization context required' });
     return;
   }
 
@@ -1830,6 +2501,7 @@ app.post('/api/assignments/:id/submissions', async (req, res) => {
         content,
         attachmentUrl: typeof file_dinh_kem === 'string' ? file_dinh_kem : null,
         submittedAt: new Date(),
+        organizationId,
       },
     });
 
@@ -1932,15 +2604,72 @@ app.patch('/api/notifications/users/:userId/read-all', async (req, res) => {
   }
 });
 
-app.get('/api/orders', async (req, res) => {
-  const userId = parseOptionalId(req.query.userId);
+app.get('/api/cart', authenticate, resolveTenant, async (req, res) => {
+  const organizationId = getOrganizationId(req) as number;
+
+  if (!organizationId) {
+    res.status(400).json({ error: 'Organization context required' });
+    return;
+  }
+
+  try {
+    const cartItems = await prisma.cart.findMany({
+      where: {
+        userId: req.user!.userId,
+        organizationId,
+      },
+      include: {
+        course: {
+          include: {
+            instructor: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
+            category: { select: { id: true, name: true } },
+            chapters: {
+              include: { lessons: { select: { id: true } } },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const totalAmount = cartItems.reduce((sum, item) => sum + item.course.price, 0);
+
+    res.json({
+      items: cartItems.map((item) => ({
+        id: item.id,
+        khoa_hoc_id: item.courseId,
+        gia: item.course.price,
+        khoa_hoc: {
+          ...serializeCourse(item.course),
+          so_chuong: item.course.chapters.length,
+          tong_bai_hoc: item.course.chapters.reduce((s, ch) => s + ch.lessons.length, 0),
+          giang_vien: item.course.instructor,
+          danh_muc: item.course.category,
+        },
+        ngay_them: item.createdAt.toISOString(),
+      })),
+      tong_tien: totalAmount,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/api/orders', authenticate, resolveTenant, async (req, res) => {
+  const userIdParam = parseOptionalId(req.query.userId);
   const startDate = typeof req.query.startDate === 'string' ? req.query.startDate : undefined;
   const endDate = typeof req.query.endDate === 'string' ? req.query.endDate : undefined;
+  const organizationId = getOrganizationId(req) as number;
+  const isAdmin = req.user!.role === 'admin' || req.user!.role === 'super_admin';
+
+  const targetUserId: number | undefined = isAdmin ? (userIdParam ?? undefined) : req.user!.userId;
 
   try {
     const orders = await prisma.order.findMany({
       where: {
-        ...(userId ? { userId } : {}),
+        organizationId,
+        ...(targetUserId ? { userId: targetUserId } : {}),
         ...(startDate || endDate
           ? {
               orderedAt: {
@@ -1997,7 +2726,7 @@ app.get('/api/orders', async (req, res) => {
           id: payment.id,
           so_tien: payment.amount,
           trang_thai: payment.status,
-          ngay_thanh_toan: payment.paidAt.toISOString(),
+          ngay_thanh_toan: payment.paidAt ? payment.paidAt.toISOString() : null,
           phuong_thuc: payment.method,
         })),
       })),
@@ -2007,13 +2736,20 @@ app.get('/api/orders', async (req, res) => {
   }
 });
 
-app.get('/api/admin/overview', async (_req, res) => {
+app.get('/api/admin/overview', authenticate, resolveTenant, async (req, res) => {
+  const organizationId = getOrganizationId(req);
+
+  if (!organizationId) {
+    res.status(400).json({ error: 'Organization context required' });
+    return;
+  }
+
   try {
     const [usersCount, coursesCount, orders, pendingCoursesCount] = await Promise.all([
-      prisma.user.count(),
-      prisma.course.count(),
-      prisma.order.findMany({ select: { totalAmount: true, status: true } }),
-      prisma.course.count({ where: { status: 'pending' } }),
+      prisma.user.count({ where: { organizationId } }),
+      prisma.course.count({ where: { organizationId } }),
+      prisma.order.findMany({ where: { organizationId }, select: { totalAmount: true, status: true } }),
+      prisma.course.count({ where: { status: 'pending', organizationId } }),
     ]);
 
     const revenue = orders.filter((order) => order.status === 'success').reduce((sum, order) => sum + order.totalAmount, 0);
@@ -2031,9 +2767,9 @@ app.get('/api/admin/overview', async (_req, res) => {
   }
 });
 
-app.patch('/api/courses/:id/status', async (req, res) => {
+app.patch('/api/courses/:id/status', authenticate, resolveTenant, async (req, res) => {
   const courseId = parseId(req.params.id);
-  const { trang_thai } = req.body as { trang_thai?: string };
+  const { trang_thai, ly_do } = req.body as { trang_thai?: string; ly_do?: string };
   const status = courseStatuses.find((value) => value === trang_thai);
 
   if (!courseId || !status) {
@@ -2042,7 +2778,29 @@ app.patch('/api/courses/:id/status', async (req, res) => {
   }
 
   try {
-    const course = await prisma.course.update({
+    const course = await prisma.course.findUnique({
+      where: { id: courseId },
+    });
+
+    if (!course) {
+      res.status(404).json({ error: 'Course not found' });
+      return;
+    }
+
+    const isOwner = course.instructorId === req.user!.userId;
+    const isAdmin = req.user!.role === 'admin' || req.user!.role === 'super_admin';
+
+    if (status === 'pending' && !isOwner) {
+      res.status(403).json({ error: 'Only course owner can submit for approval' });
+      return;
+    }
+
+    if (['approved', 'rejected'].includes(status) && !isAdmin) {
+      res.status(403).json({ error: 'Only admin can approve/reject courses' });
+      return;
+    }
+
+    const updatedCourse = await prisma.course.update({
       where: { id: courseId },
       data: { status },
       include: {
@@ -2051,9 +2809,196 @@ app.patch('/api/courses/:id/status', async (req, res) => {
       },
     });
 
-    res.json({ course: serializeCourse(course) });
+    const title = status === 'approved' ? 'Khóa học đã được phê duyệt' : 'Khóa học bị từ chối';
+
+      await prisma.notification.create({
+        data: {
+          userId: course.instructorId,
+          title,
+          content: status === 'rejected' && ly_do ? `Lý do: ${ly_do}` : `Khóa học "${course.title}" đã ${status === 'approved' ? 'được phê duyệt' : 'bị từ chối'}.`,
+          type: status === 'approved' ? 'success' : 'warning',
+          organizationId: course.organizationId,
+          createdAt: new Date(),
+        },
+      });
+
+    res.json({ course: serializeCourse(updatedCourse) });
   } catch (error) {
-    handleError(res, error);
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/courses/:id/submit', authenticate, resolveTenant, async (req, res) => {
+  const courseId = parseId(req.params.id);
+
+  if (!courseId) {
+    res.status(400).json({ error: 'Invalid course id' });
+    return;
+  }
+
+  try {
+    const course = await prisma.course.findFirst({
+      where: {
+        id: courseId,
+        instructorId: req.user!.userId,
+      },
+      include: {
+        chapters: {
+          include: { lessons: true },
+        },
+      },
+    });
+
+    if (!course) {
+      res.status(404).json({ error: 'Course not found' });
+      return;
+    }
+
+    if (course.status !== 'draft') {
+      res.status(400).json({ error: 'Only draft courses can be submitted' });
+      return;
+    }
+
+    if (course.chapters.length === 0) {
+      res.status(400).json({ error: 'Course must have at least one chapter' });
+      return;
+    }
+
+    const totalLessons = course.chapters.reduce((sum, ch) => sum + ch.lessons.length, 0);
+    if (totalLessons === 0) {
+      res.status(400).json({ error: 'Course must have at least one lesson' });
+      return;
+    }
+
+    await prisma.course.update({
+      where: { id: courseId },
+      data: { status: 'pending' },
+    });
+
+    const pendingCount = await prisma.course.count({
+      where: { status: 'pending', organizationId: course.organizationId },
+    });
+
+    const adminUsers = await prisma.user.findMany({
+      where: { role: 'admin', organizationId: course.organizationId },
+      select: { id: true },
+    });
+
+    for (const admin of adminUsers) {
+      await prisma.notification.create({
+        data: {
+          userId: admin.id,
+          title: 'Khóa học mới chờ duyệt',
+          content: `Khóa học "${course.title}" đang chờ bạn phê duyệt.`,
+          type: 'info',
+          link: `/admin/courses?status=pending`,
+          organizationId: course.organizationId,
+          createdAt: new Date(),
+        },
+      });
+    }
+
+    res.json({
+      message: 'Course submitted for approval',
+      pending_count: pendingCount,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/api/courses/:id/status', authenticate, async (req, res) => {
+  const courseId = parseId(req.params.id);
+
+  if (!courseId) {
+    res.status(400).json({ error: 'Invalid course id' });
+    return;
+  }
+
+  try {
+    const course = await prisma.course.findUnique({
+      where: { id: courseId },
+      select: {
+        id: true,
+        status: true,
+        instructorId: true,
+      },
+    });
+
+    if (!course) {
+      res.status(404).json({ error: 'Course not found' });
+      return;
+    }
+
+    res.json({ status: course.status, is_owner: course.instructorId === req.user?.userId });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/api/admin/courses', authenticate, resolveTenant, async (req, res) => {
+  const statusParam = typeof req.query.status === 'string' ? req.query.status : undefined;
+  const status = courseStatuses.find((value) => value === statusParam);
+
+  try {
+    const courses = await prisma.course.findMany({
+      where: {
+        organizationId: req.tenant?.organizationId || req.user!.organizationId,
+        ...(status ? { status } : {}),
+      },
+      include: {
+        instructor: { select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true } },
+        category: { select: { id: true, name: true } },
+        chapters: {
+          include: { lessons: { select: { id: true } } },
+        },
+      },
+      orderBy: { id: 'desc' },
+    });
+
+    res.json({
+      courses: courses.map((course) => ({
+        ...serializeCourse(course),
+        so_chuong: course.chapters.length,
+        tong_bai_hoc: course.chapters.reduce((sum, ch) => sum + ch.lessons.length, 0),
+      })),
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/api/admin/pending-courses', authenticate, resolveTenant, async (req, res) => {
+  try {
+    const courses = await prisma.course.findMany({
+      where: {
+        status: 'pending',
+        organizationId: req.tenant?.organizationId || req.user!.organizationId,
+      },
+      include: {
+        instructor: { select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true } },
+        category: { select: { id: true, name: true } },
+        chapters: {
+          include: { lessons: { select: { id: true } } },
+        },
+      },
+      orderBy: { id: 'desc' },
+    });
+
+    res.json({
+      courses: courses.map((course) => ({
+        ...serializeCourse(course),
+        so_chuong: course.chapters.length,
+        tong_bai_hoc: course.chapters.reduce((sum, ch) => sum + ch.lessons.length, 0),
+      })),
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -2272,18 +3217,18 @@ app.get('/api/analytics', async (_req, res) => {
   }
 });
 
-app.patch('/api/orders/:id/refund', async (req, res) => {
+app.patch('/api/orders/:id/refund', authenticate, resolveTenant, async (req, res) => {
   const orderId = parseId(req.params.id);
+  const organizationId = getOrganizationId(req);
 
-  if (!orderId) {
+  if (!orderId || !organizationId) {
     res.status(400).json({ error: 'Invalid order id' });
     return;
   }
 
   try {
-    const order = await prisma.order.update({
-      where: { id: orderId },
-      data: { status: 'refunded' },
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, organizationId },
       include: {
         user: { select: { id: true, firstName: true, lastName: true } },
         items: { include: { course: { select: { id: true, title: true } } } },
@@ -2291,7 +3236,32 @@ app.patch('/api/orders/:id/refund', async (req, res) => {
       },
     });
 
+    if (!order) {
+      res.status(404).json({ error: 'Order not found' });
+      return;
+    }
+
+    const isOwner = order.userId === req.user!.userId;
+    const isAdmin = req.user!.role === 'admin' || req.user!.role === 'super_admin';
+
+    if (!isOwner && !isAdmin) {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
+
+    const updatedOrder = await prisma.order.update({
+      where: { id: orderId },
+      data: { status: 'refunded' },
+      include: {
+        items: { include: { course: { select: { id: true, title: true } } } },
+      },
+    });
+
     for (const item of order.items) {
+      await prisma.enrollment.deleteMany({
+        where: { userId: order.userId, courseId: item.courseId },
+      });
+
       await prisma.course.update({
         where: { id: item.courseId },
         data: { enrolledCount: { decrement: 1 } },
@@ -2300,12 +3270,12 @@ app.patch('/api/orders/:id/refund', async (req, res) => {
 
     res.json({
       don_hang: {
-        id: order.id,
-        nguoi_dung_id: order.userId,
-        tong_tien: order.totalAmount,
-        trang_thai: order.status,
-        ngay_dat: order.orderedAt.toISOString(),
-        items: order.items.map((item) => ({
+        id: updatedOrder.id,
+        nguoi_dung_id: updatedOrder.userId,
+        tong_tien: updatedOrder.totalAmount,
+        trang_thai: updatedOrder.status,
+        ngay_dat: updatedOrder.orderedAt.toISOString(),
+        items: updatedOrder.items.map((item) => ({
           id: item.id,
           khoa_hoc_id: item.courseId,
           khoa_hoc: { id: item.course.id, tieu_de: item.course.title },
@@ -2345,7 +3315,7 @@ app.get('/api/quizzes/:id/questions', async (req, res) => {
   }
 });
 
-app.post('/api/quizzes/:id/questions', async (req, res) => {
+app.post('/api/quizzes/:id/questions', authenticate, resolveTenant, async (req, res) => {
   const quizId = parseId(req.params.id);
   const { cau_hoi, lua_chon, dap_an_dung } = req.body as {
     cau_hoi?: string;
@@ -2356,9 +3326,15 @@ app.post('/api/quizzes/:id/questions', async (req, res) => {
   const question = cau_hoi?.trim();
   const options = Array.isArray(lua_chon) ? lua_chon : [];
   const correctAnswer = dap_an_dung?.trim();
+  const organizationId = getOrganizationId(req);
 
   if (!quizId || !question || options.length === 0 || !correctAnswer) {
     res.status(400).json({ error: 'Invalid question payload' });
+    return;
+  }
+
+  if (!organizationId) {
+    res.status(400).json({ error: 'Organization context required' });
     return;
   }
 
@@ -2369,6 +3345,7 @@ app.post('/api/quizzes/:id/questions', async (req, res) => {
         question,
         options,
         correctAnswer,
+        organizationId,
       },
     });
 
@@ -2387,7 +3364,8 @@ app.post('/api/quizzes/:id/questions', async (req, res) => {
       },
     });
   } catch (error) {
-    handleError(res, error);
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

@@ -8,202 +8,20 @@ import { Button, Card, Input, Badge, Loader, Modal, ImageUpload } from '../compo
 import { useAuth } from '../contexts/AuthContext';
 import * as api from '../api';
 
-interface Chapter {
-  id: number;
-  khoa_hoc_id: number;
-  tieu_de: string;
-  thu_tu: number;
-  bai_hoc?: Lesson[];
-}
-
-interface Lesson {
-  id: number;
-  chuong_hoc_id: number;
-  tieu_de: string;
-  video_url?: string;
-  noi_dung?: string;
-  loai: string;
-  thoi_luong?: string;
-  quizzes?: Quiz[];
-  assignments?: Assignment[];
-}
-
-interface Quiz {
-  id: number;
-  tieu_de: string;
-  thoi_gian_lam?: number;
-  so_cau_hoi?: number;
-}
-
-interface Assignment {
-  id: number;
-  tieu_de: string;
-  mo_ta?: string;
-  bat_buoc: boolean;
-  han_nop?: string;
-}
-
-export const TeacherCourseEditPage: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
-  const { user } = useAuth();
-  const courseId = id && id !== 'new' ? Number(id) : 0;
-  const isNew = !id || id === 'new';
-
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [course, setCourse] = useState<any>(null);
-  const [chapters, setChapters] = useState<Chapter[]>([]);
-  const [openChapters, setOpenChapters] = useState<number[]>([]);
-  const [error, setError] = useState<string | null>(null);
-
-// Modal states
-  const [showChapterModal, setShowChapterModal] = useState(false);
-  const [showLessonModal, setShowLessonModal] = useState(false);
-  const [showQuizModal, setShowQuizModal] = useState(false);
-  const [showAssignmentModal, setShowAssignmentModal] = useState(false);
-  const [editingChapter, setEditingChapter] = useState<Chapter | null>(null);
-  const [editingLesson, setEditingLesson] = useState<{ chapterId: number; lesson?: Lesson } | null>(null);
-  const [editingQuiz, setEditingQuiz] = useState<Quiz | null>(null);
-  const [editingAssignment, setEditingAssignment] = useState<Assignment | null>(null);
-
-  // New Chapter form
-  const [newChapterTitle, setNewChapterTitle] = useState('');
-  const [newChapterOrder, setNewChapterOrder] = useState<number>(1);
-
-  // New Lesson form
-  const [newLessonTitle, setNewLessonTitle] = useState('');
-  const [newLessonDuration, setNewLessonDuration] = useState('');
-  const [newLessonVideoUrl, setNewLessonVideoUrl] = useState('');
-  const [newLessonType, setNewLessonType] = useState('video');
-  const [newLessonContent, setNewLessonContent] = useState('');
-  const [isLessonEditMode, setIsLessonEditMode] = useState(false);
-  const [editingLessonId, setEditingLessonId] = useState<number | null>(null);
-
-  // New Quiz form
-  const [newQuizTitle, setNewQuizTitle] = useState('');
-  const [newQuizTimeLimit, setNewQuizTimeLimit] = useState<number>(10);
-  const [newQuizQuestionCount, setNewQuizQuestionCount] = useState<number>(5);
-
-  // New Assignment form
-  const [newAssignmentTitle, setNewAssignmentTitle] = useState('');
-  const [newAssignmentDescription, setNewAssignmentDescription] = useState('');
-  const [newAssignmentRequired, setNewAssignmentRequired] = useState(false);
-  const [newAssignmentDeadline, setNewAssignmentDeadline] = useState('');
-
-  const fetchCourseData = useCallback(async () => {
-    if (isNew) {
-      setCourse({
-        tieu_de: '',
-        mo_ta: '',
-        gia: 0,
-        muc_do: 'Cơ bản',
-        thoi_luong: '',
-        thumbnail: '',
-        so_luong_da_dang_ky: 0,
-        xep_hang: 0,
-        trang_thai: 'draft'
-      });
-      setChapters([]);
-      setLoading(false);
-      return;
-    }
-    
-    if (!courseId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const { course: courseData } = await api.getCourse(courseId);
-      if (courseData) {
-        setCourse(courseData);
-        setChapters(courseData.chuong_hoc || []);
-        setOpenChapters(courseData.chuong_hoc?.map((c: Chapter) => c.id) || []);
-      }
-    } catch (err) {
-      console.error('Failed to fetch course:', err);
-      setError('Không tải được khóa học');
-    } finally {
-      setLoading(false);
-    }
-  }, [courseId, isNew]);
+const TeacherCourseEditPage = () => {
+  const [categories, setCategories] = useState<any[]>([]);
 
   useEffect(() => {
-    fetchCourseData();
-  }, [fetchCourseData]);
-
-  const handleSaveCourse = async () => {
-    if (!course) return;
-    setSaving(true);
-    try {
-      if (isNew) {
-        // Create new course
-        const newCourse = await api.createCourse({
-          tieu_de: course.tieu_de || 'Khóa học mới',
-          giang_vien_id: user?.id || 3,
-          danh_muc_id: 1,
-          gia: course.gia || 0,
-          mo_ta: course.mo_ta,
-          muc_do: course.muc_do,
-          thoi_luong: course.thoi_luong,
-          thumbnail: course.thumbnail,
-        });
-        alert('Tạo khóa học thành công!');
-        if (newCourse?.course) {
-          navigate(`/teacher/courses/${newCourse.course.id}/edit`);
-        }
-      } else {
-        await api.updateCourse(courseId, {
-          tieu_de: course.tieu_de,
-          mo_ta: course.mo_ta,
-          gia: course.gia,
-          muc_do: course.muc_do,
-          thoi_luong: course.thoi_luong,
-          thumbnail: course.thumbnail,
-        });
-        alert('Lưu thành công!');
+    const fetchCategories = async () => {
+      try {
+        const { categories: data } = await api.getCategories();
+        setCategories(data || []);
+      } catch (err) {
+        console.error('Failed to fetch categories:', err);
       }
-    } catch (err) {
-      console.error('Failed to save:', err);
-      alert('Lưu thất bại');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // Check if course can be marked completed
-  const canMarkCompleted = course && 
-    course.trang_thai === 'draft' && 
-    chapters.length > 0 && 
-    chapters.reduce((acc: number, ch: Chapter) => acc + (ch.bai_hoc?.length || 0), 0) > 0;
-
-  const handleMarkCompleted = async () => {
-    if (!course || courseId <= 0) return;
-    
-    if (chapters.length === 0 || chapters.reduce((acc: number, ch: Chapter) => acc + (ch.bai_hoc?.length || 0), 0) === 0) {
-      alert('Khóa học cần có ít nhất 1 chương và 1 bài học!');
-      return;
-    }
-    
-    try {
-      await api.updateCourse(courseId, { trang_thai: 'completed' });
-      setCourse({ ...course, trang_thai: 'completed' });
-      alert('Đã đánh dấu hoàn thành! Admin sẽ xét duyệt.');
-    } catch (err) {
-      console.error('Failed to mark completed:', err);
-      alert('Thất bại');
-    }
-  };
-
-  const handleRevertToDraft = async () => {
-    if (!course || courseId <= 0) return;
-    try {
-      await api.updateCourse(courseId, { trang_thai: 'draft' });
-      setCourse({ ...course, trang_thai: 'draft' });
-    } catch (err) {
-      console.error('Failed to revert:', err);
-      alert('Thất bại');
-    }
-  };
+    };
+    fetchCategories();
+  }, []);
 
   const handleAddChapter = async () => {
     console.log('handleAddChapter called, isNew:', isNew, 'courseId:', courseId, 'newChapterTitle:', newChapterTitle);
@@ -341,6 +159,44 @@ export const TeacherCourseEditPage: React.FC = () => {
     }
   };
 
+  const handleReorderChapters = async (newOrder: Chapter[]) => {
+    const chapterIds = newOrder.map(ch => ch.id);
+    try {
+      await api.updateCourse(courseId, { 
+        trang_thai: course.trang_thai,
+        chapterIds 
+      } as any);
+      setChapters(newOrder);
+    } catch (err) {
+      console.error('Failed to reorder:', err);
+      alert('Sắp xếp thất bại');
+    }
+  };
+
+  const handleMoveChapter = (index: number, direction: 'up' | 'down') => {
+    const newChapters = [...chapters];
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= newChapters.length) return;
+    [newChapters[index], newChapters[targetIndex]] = [newChapters[targetIndex], newChapters[index]];
+    handleReorderChapters(newChapters);
+  };
+
+  const handleMoveLesson = (chapterId: number, lessonIndex: number, direction: 'up' | 'down') => {
+    const chapter = chapters.find(ch => ch.id === chapterId);
+    if (!chapter || !chapter.bai_hoc) return;
+    const targetIndex = direction === 'up' ? lessonIndex - 1 : lessonIndex + 1;
+    if (targetIndex < 0 || targetIndex >= chapter.bai_hoc.length) return;
+    
+    const newLessons = [...chapter.bai_hoc];
+    [newLessons[lessonIndex], newLessons[targetIndex]] = [newLessons[targetIndex], newLessons[lessonIndex]];
+    
+    setChapters(chapters.map(ch => 
+      ch.id === chapterId ? { ...ch, bai_hoc: newLessons } : ch
+    ));
+
+    api.updateChapter(chapterId, { lessonIds: newLessons.map((l: Lesson) => l.id) } as any).catch(console.error);
+  };
+
   // Get chapter name helper
   const getChapterName = (chapterId: number) => {
     const ch = chapters.find(c => c.id === chapterId);
@@ -420,15 +276,18 @@ export const TeacherCourseEditPage: React.FC = () => {
           </div>
           <div className="flex gap-2">
             {course?.trang_thai === 'draft' && (
-              <Button variant="success" onClick={handleMarkCompleted} disabled={!canMarkCompleted}>
-                Hoàn thành
+              <Button variant="success" onClick={handleSubmitForApproval} disabled={!canSubmitForApproval}>
+                Gửi duyệt
               </Button>
             )}
-            {course?.trang_thai === 'completed' && (
+            {course?.trang_thai === 'pending' && (
+              <Badge variant="warning">Đang chờ duyệt</Badge>
+            )}
+            {course?.trang_thai === 'rejected' && (
               <>
-                <Badge variant="success">Hoàn thành</Badge>
+                <Badge variant="danger">Bị từ chối</Badge>
                 <Button variant="outline" onClick={handleRevertToDraft}>
-                  Chỉnh sửa tiếp
+                  Chỉnh sửa lại
                 </Button>
               </>
             )}
@@ -495,6 +354,19 @@ export const TeacherCourseEditPage: React.FC = () => {
                       <option value="Nâng cao">Nâng cao</option>
                     </select>
                   </div>
+                  <div>
+                    <label className="block text-sm font-['Comfortaa', cursive] text-gray-600 mb-1">Danh mục</label>
+                    <select
+                      value={course.danh_muc_id || ''}
+                      onChange={(e) => setCourse({ ...course, danh_muc_id: Number(e.target.value) })}
+                      className="w-full p-3 border-2 border-[#263D5B] rounded-[8px] font-['Comfortaa', cursive]"
+                    >
+                      <option value="">Chọn danh mục</option>
+                      {categories.map((cat: any) => (
+                        <option key={cat.id} value={cat.id}>{cat.ten}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -556,6 +428,24 @@ export const TeacherCourseEditPage: React.FC = () => {
                           <span className="text-sm text-gray-500">
                             {chapter.bai_hoc?.length || 0} bài
                           </span>
+                          <button 
+                            type="button"
+                            className="p-1 hover:bg-gray-200 rounded disabled:opacity-30"
+                            disabled={index === 0}
+                            onClick={(e) => { e.stopPropagation(); handleMoveChapter(index, 'up'); }}
+                            title="Di chuyển lên"
+                          >
+                            ↑↑
+                          </button>
+                          <button 
+                            type="button"
+                            className="p-1 hover:bg-gray-200 rounded disabled:opacity-30"
+                            disabled={index === chapters.length - 1}
+                            onClick={(e) => { e.stopPropagation(); handleMoveChapter(index, 'down'); }}
+                            title="Di chuyển xuống"
+                          >
+                            ↓↓
+                          </button>
                           <Button 
                             variant="outline" 
                             size="sm"
@@ -589,12 +479,13 @@ export const TeacherCourseEditPage: React.FC = () => {
                               Chưa có bài học
                             </p>
                           ) : (
-                            chapter.bai_hoc.map((lesson: Lesson) => (
+                            chapter.bai_hoc.map((lesson: Lesson, lessonIndex: number) => (
                               <div 
                                 key={lesson.id}
-                                className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-[8px]"
+                                className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-[8px] group"
                               >
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-3 flex-1">
+                                  <span className="text-gray-400 text-xs">#{lessonIndex + 1}</span>
                                   <Video className="w-5 h-5 text-[#49B6E5]" />
                                   <div>
                                     <p className="font-['Comfortaa', cursive] text-sm text-[#263D5B]">
@@ -605,9 +496,26 @@ export const TeacherCourseEditPage: React.FC = () => {
                                     </p>
                                   </div>
                                 </div>
-                                <div className="flex gap-2">
+                                <div className="flex gap-1">
+                                  <button 
+                                    type="button"
+                                    className="p-1 hover:bg-gray-100 rounded text-xs"
+                                    onClick={() => handleMoveLesson(chapter.id, lessonIndex, 'up')}
+                                    title="Di chuyển lên"
+                                    disabled={lessonIndex === 0}
+                                  >
+                                    ↑
+                                  </button>
+                                  <button 
+                                    type="button"
+                                    className="p-1 hover:bg-gray-100 rounded text-xs"
+                                    onClick={() => handleMoveLesson(chapter.id, lessonIndex, 'down')}
+                                    title="Di chuyển xuống"
+                                    disabled={lessonIndex === chapter.bai_hoc.length - 1}
+                                  >
+                                    ↓
+                                  </button>
                                   <Button variant="outline" size="sm" onClick={() => {
-                                    console.log('Edit lesson click, lesson:', lesson);
                                     setEditingLesson({ chapterId: chapter.id, lesson: lesson });
                                     setNewLessonTitle(lesson.tieu_de || '');
                                     setNewLessonDuration(lesson.thoi_luong || '');
