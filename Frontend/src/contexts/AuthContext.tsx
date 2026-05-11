@@ -1,32 +1,40 @@
 import {
-  type ReactNode,
-  createContext,
-  useContext,
-  useEffect,
-  useState,
+	type ReactNode,
+	createContext,
+	useContext,
+	useEffect,
+	useState,
 } from "react";
-import { login as apiLogin, logout as apiLogout, getCurrentUser, ApiError } from "../api";
+import {
+	ApiError,
+	login as apiLogin,
+	logout as apiLogout,
+	getCurrentUser,
+} from "../api";
 
 export interface User {
-  id: number;
-  ten_dang_nhap: string;
-  email: string;
-  ho: string;
-  ten: string;
-  vai_tro: string;
-  anh_dai_dien?: string;
+	id: number;
+	ten_dang_nhap: string;
+	email: string;
+	ho: string;
+	ten: string;
+	vai_tro: string;
+	anh_dai_dien?: string;
 }
 
-export type UserRole = 'hoc_vien' | 'giang_vien' | 'admin';
+export type UserRole = "hoc_vien" | "giang_vien" | "admin";
 
 interface AuthContextType {
-  user: User | null;
-  login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  logout: () => void;
-  isLoading: boolean;
-  isStudent: boolean;
-  isTeacher: boolean;
-  isAdmin: boolean;
+	user: User | null;
+	login: (
+		username: string,
+		password: string,
+	) => Promise<{ success: boolean; error?: string }>;
+	logout: () => void;
+	isLoading: boolean;
+	isStudent: boolean;
+	isTeacher: boolean;
+	isAdmin: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -34,75 +42,90 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const STORAGE_KEY = "lms_auth_user";
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+	const [user, setUser] = useState<User | null>(null);
+	const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        setUser(JSON.parse(stored));
-      } catch {
-        localStorage.removeItem(STORAGE_KEY);
-      }
-    }
-    setIsLoading(false);
-  }, []);
+	useEffect(() => {
+		const stored = localStorage.getItem(STORAGE_KEY);
+		if (stored) {
+			try {
+				setUser(JSON.parse(stored));
+			} catch {
+				localStorage.removeItem(STORAGE_KEY);
+			}
+		}
+		setIsLoading(false);
+	}, []);
 
-  const login = async (
-    username: string,
-    password: string,
-  ): Promise<{ success: boolean; error?: string }> => {
-    try {
-      const result = await apiLogin(username, password);
-      if (result.user) {
-        const userData = {
-          id: result.user.id,
-          ten_dang_nhap: result.user.ten_dang_nhap,
-          email: result.user.email,
-          ho: result.user.ho,
-          ten: result.user.ten,
-          vai_tro: result.user.vai_tro,
-          anh_dai_dien: result.user.anh_dai_dien,
-        };
-        setUser(userData);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
-        return { success: true };
-      }
-      return { success: false, error: 'Đăng nhập thất bại' };
-    } catch (error) {
-      console.error('Login error:', error);
-      if (error instanceof ApiError) {
-        if (error.status === 401) {
-          return { success: false, error: 'Email hoặc mật khẩu không đúng' };
-        }
-        return { success: false, error: error.message };
-      }
-      return { success: false, error: 'Đăng nhập thất bại' };
-    }
-  };
+	useEffect(() => {
+		const handleAuthExpired = () => {
+			setUser(null);
+			localStorage.removeItem(STORAGE_KEY);
+			window.location.href = "/login";
+		};
+		window.addEventListener("auth:expired", handleAuthExpired);
+		return () => window.removeEventListener("auth:expired", handleAuthExpired);
+	}, []);
 
-  const logout = () => {
-    apiLogout();
-    setUser(null);
-    localStorage.removeItem(STORAGE_KEY);
-  };
+	const login = async (
+		username: string,
+		password: string,
+	): Promise<{ success: boolean; error?: string }> => {
+		try {
+			const result = await apiLogin(username, password);
+			if (result.user) {
+				const userData = {
+					id: result.user.id,
+					ten_dang_nhap: result.user.ten_dang_nhap,
+					email: result.user.email,
+					ho: result.user.ho,
+					ten: result.user.ten,
+					vai_tro: result.user.vai_tro,
+					anh_dai_dien: result.user.anh_dai_dien,
+				};
+				setUser(userData);
+				localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
+				return { success: true };
+			}
+			return { success: false, error: "Đăng nhập thất bại" };
+		} catch (error) {
+			console.error("Login error:", error);
+			if (error instanceof ApiError) {
+				if (error.status === 401) {
+					return { success: false, error: "Email hoặc mật khẩu không đúng" };
+				}
+				return { success: false, error: error.message };
+			}
+			return { success: false, error: "Đăng nhập thất bại" };
+		}
+	};
 
-  const isStudent = user?.vai_tro === 'hoc_vien';
-  const isTeacher = user?.vai_tro === 'giang_vien';
-  const isAdmin = user?.vai_tro === 'admin';
+	const logout = () => {
+		apiLogout();
+		setUser(null);
+		localStorage.removeItem(STORAGE_KEY);
+		localStorage.removeItem("token");
+		localStorage.removeItem("refreshToken");
+		window.location.href = "/login";
+	};
 
-  return (
-    <AuthContext.Provider value={{ user, login, logout, isLoading, isStudent, isTeacher, isAdmin }}>
-      {children}
-    </AuthContext.Provider>
-  );
+	const isStudent = user?.vai_tro === "hoc_vien";
+	const isTeacher = user?.vai_tro === "giang_vien";
+	const isAdmin = user?.vai_tro === "admin";
+
+	return (
+		<AuthContext.Provider
+			value={{ user, login, logout, isLoading, isStudent, isTeacher, isAdmin }}
+		>
+			{children}
+		</AuthContext.Provider>
+	);
 };
 
 export const useAuth = (): AuthContextType => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-  return context;
+	const context = useContext(AuthContext);
+	if (context === undefined) {
+		throw new Error("useAuth must be used within an AuthProvider");
+	}
+	return context;
 };

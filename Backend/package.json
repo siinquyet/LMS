@@ -9,7 +9,9 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "prisma db seed",
-    "lint": "biome lint src"
+    "lint": "biome lint src",
+    "storage:check": "tsx src/scripts/check-storage.ts",
+    "storage:cleanup": "tsx src/scripts/cleanup-orphans.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

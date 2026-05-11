@@ -1,27 +1,35 @@
-import React from 'react';
+import type React from "react";
 
-export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'danger' | 'outline' | 'ghost' | 'success' | 'warning';
-  size?: 'sm' | 'md' | 'lg';
-  children: React.ReactNode;
+export interface ButtonProps
+	extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+	variant?:
+		| "primary"
+		| "secondary"
+		| "danger"
+		| "outline"
+		| "ghost"
+		| "success"
+		| "warning"
+		| "default";
+	size?: "sm" | "md" | "lg";
+	children: React.ReactNode;
 }
 
 export const Button: React.FC<ButtonProps> = ({
-  variant = 'primary',
-  size = 'md',
-  children,
-  className = '',
-  ...props
+	variant = "primary",
+	size = "md",
+	children,
+	className = "",
+	...props
 }) => {
-  const baseStyles = `
-    font-['Comfortaa', cursive]
-    font-normal
-    border-2
-    border-[#263D5B]
-    rounded-[12px]
+	const baseStyles = `
+    font-['Inter', sans-serif]
+    font-semibold
+    border-[3px]
+    border-[#1C293C]
     cursor-pointer
     transition-all
-    duration-150
+    duration-100
     ease-out
     relative
     inline-flex
@@ -29,34 +37,42 @@ export const Button: React.FC<ButtonProps> = ({
     justify-center
     gap-2
     whitespace-nowrap
+    outline-none
   `;
 
-  const variantStyles = {
-    primary: 'bg-[#49B6E5] text-white hover:bg-[#3A9BC7] shadow-[3px_3px_0px_#E5E1DC] hover:shadow-[4px_4px_0px_#E5E1DC] hover:translate-x-[-2px] hover:translate-y-[-2px]',
-    secondary: 'bg-white text-[#263D5B] shadow-[3px_3px_0px_#E5E1DC] hover:shadow-[4px_4px_0px_#E5E1DC] hover:translate-x-[-2px] hover:translate-y-[-2px]',
-    danger: 'bg-[#DC2626] text-white hover:bg-[#B91C1C] shadow-[3px_3px_0px_#E5E1DC] hover:shadow-[4px_4px_0px_#E5E1DC] hover:translate-x-[-2px] hover:translate-y-[-2px]',
-    success: 'bg-[#22C55E] text-white hover:bg-[#16A34A] shadow-[3px_3px_0px_#E5E1DC] hover:shadow-[4px_4px_0px_#E5E1DC] hover:translate-x-[-2px] hover:translate-y-[-2px]',
-    warning: 'bg-[#F59E0B] text-white hover:bg-[#D97706] shadow-[3px_3px_0px_#E5E1DC] hover:shadow-[4px_4px_0px_#E5E1DC] hover:translate-x-[-2px] hover:translate-y-[-2px]',
-    outline: 'bg-transparent text-[#263D5B] border-dashed hover:bg-[#F8F6F3]',
-    ghost: 'bg-transparent text-gray-300 hover:bg-[#475569]',
-  };
+	const variantStyles = {
+		primary:
+			"bg-[#FDC800] text-[#1C293C] shadow-[4px_4px_0_#1C293C] hover:shadow-[6px_6px_0_#1C293C] hover:translate-x-[-2px] hover:translate-y-[-2px] active:shadow-none active:translate-x-[2px] active:translate-y-[2px]",
+		secondary:
+			"bg-[#432DD7] text-white shadow-[4px_4px_0_#1C293C] hover:shadow-[6px_6px_0_#1C293C] hover:translate-x-[-2px] hover:translate-y-[-2px] active:shadow-none active:translate-x-[2px] active:translate-y-[2px]",
+		danger:
+			"bg-[#DC2626] text-white shadow-[4px_4px_0_#1C293C] hover:shadow-[6px_6px_0_#1C293C] hover:translate-x-[-2px] hover:translate-y-[-2px] active:shadow-none active:translate-x-[2px] active:translate-y-[2px]",
+		success:
+			"bg-[#16A34A] text-white shadow-[4px_4px_0_#1C293C] hover:shadow-[6px_6px_0_#1C293C] hover:translate-x-[-2px] hover:translate-y-[-2px] active:shadow-none active:translate-x-[2px] active:translate-y-[2px]",
+		warning:
+			"bg-[#D97706] text-white shadow-[4px_4px_0_#1C293C] hover:shadow-[6px_6px_0_#1C293C] hover:translate-x-[-2px] hover:translate-y-[-2px] active:shadow-none active:translate-x-[2px] active:translate-y-[2px]",
+		outline:
+			"bg-transparent text-[#1C293C] border-dashed hover:bg-[#FDC800]/20",
+		ghost:
+			"bg-transparent text-[#1C293C] border-transparent hover:bg-[#E5E7EB]",
+		default:
+			"bg-white text-[#1C293C] shadow-[4px_4px_0_#1C293C] hover:shadow-[6px_6px_0_#1C293C] hover:translate-x-[-2px] hover:translate-y-[-2px] active:shadow-none active:translate-x-[2px] active:translate-y-[2px]",
+	};
 
-  const sizeStyles = {
-    sm: 'px-3 py-1.5 text-sm',
-    md: 'px-5 py-2.5 text-base',
-    lg: 'px-7 py-3.5 text-lg',
-  };
+	const sizeStyles = {
+		sm: "px-4 py-2 text-[13px] shadow-[2px_2px_0_#1C293C] hover:shadow-[4px_4px_0_#1C293C]",
+		md: "px-6 py-3 text-[15px]",
+		lg: "px-8 py-4 text-[17px] shadow-[6px_6px_0_#1C293C] hover:shadow-[8px_8px_0_#1C293C]",
+	};
 
-  const activeStyles = 'active:translate-x-0 active:translate-y-0 active:shadow-none';
-
-  return (
-    <button
-      className={`${baseStyles} ${variantStyles[variant]} ${sizeStyles[size]} ${activeStyles} ${className}`}
-      {...props}
-    >
-      {children}
-    </button>
-  );
+	return (
+		<button
+			className={`${baseStyles} ${variantStyles[variant]} ${sizeStyles[size]} ${className}`}
+			{...props}
+		>
+			{children}
+		</button>
+	);
 };
 
 export default Button;

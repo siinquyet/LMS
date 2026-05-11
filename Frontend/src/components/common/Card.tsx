@@ -4,27 +4,39 @@ export interface CardProps {
   children: React.ReactNode;
   className?: string;
   hoverable?: boolean;
+  onClick?: () => void;
+  variant?: 'default' | 'outlined' | 'filled';
 }
 
 export const Card: React.FC<CardProps> = ({
   children,
   className = '',
   hoverable = true,
+  onClick,
+  variant = 'default',
 }) => {
+  const variantStyles = {
+    default: 'border-[3px] border-[#1C293C] shadow-[6px_6px_0_#1C293C] bg-white',
+    outlined: 'border-[3px] border-dashed border-[#1C293C] bg-white shadow-none',
+    filled: 'border-[3px] border-[#1C293C] bg-[#FDC800] shadow-none',
+  };
+
+  const hoverStyles = hoverable 
+    ? 'hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[8px_8px_0_#1C293C]' 
+    : '';
+
   return (
     <div
+      onClick={onClick}
       className={`
-        bg-white
-        border-2
-        border-[#263D5B]
-        rounded-[16px]
         p-6
-        shadow-[3px_3px_0px_#E5E1DC]
         transition-all
-        duration-200
+        duration-100
         ease-out
         overflow-visible
-        ${hoverable ? 'hover:translate-x-[-3px] hover:translate-y-[-3px] hover:shadow-[4px_4px_0px_#E5E1DC]' : ''}
+        ${variantStyles[variant]}
+        ${hoverStyles}
+        ${onClick ? 'cursor-pointer' : ''}
         ${className}
       `}
     >
@@ -37,7 +49,7 @@ export const CardHeader: React.FC<{ children: React.ReactNode; className?: strin
   children,
   className = '',
 }) => (
-  <div className={`font-['Comfortaa', cursive] text-[#263D5B] mb-4 ${className}`}>
+  <div className={`font-['Inter', sans-serif] font-semibold text-[#1C293C] mb-4 text-lg ${className}`}>
     {children}
   </div>
 );
@@ -46,7 +58,7 @@ export const CardContent: React.FC<{ children: React.ReactNode; className?: stri
   children,
   className = '',
 }) => (
-  <div className={`text-[#111827] ${className}`}>
+  <div className={`text-[#1C293C] ${className}`}>
     {children}
   </div>
 );
@@ -55,7 +67,7 @@ export const CardFooter: React.FC<{ children: React.ReactNode; className?: strin
   children,
   className = '',
 }) => (
-  <div className={`mt-4 pt-4 border-t-2 border-dashed border-[#E5E1DC] ${className}`}>
+  <div className={`mt-4 pt-4 border-t-[3px] border-dashed border-[#1C293C] ${className}`}>
     {children}
   </div>
 );

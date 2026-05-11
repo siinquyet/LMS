@@ -1,56 +1,49 @@
-import React from 'react';
+import type React from "react";
 
-export interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
-  label?: string;
-  error?: string;
+export interface TextareaProps
+	extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
+	label?: string;
+	error?: string;
+	helperText?: string;
 }
 
 export const Textarea: React.FC<TextareaProps> = ({
-  label,
-  error,
-  className = '',
-  ...props
+	label,
+	error,
+	helperText,
+	className = "",
+	...props
 }) => {
-  return (
-    <div className="flex flex-col gap-2">
-      {label && (
-        <label className="font-['Comfortaa', cursive] text-[#263D5B] text-base">
-          {label}
-        </label>
-      )}
-      <textarea
-        className={`
-          font-['Comfortaa', cursive]
-          w-full
-          px-4 py-3
+	return (
+		<div className="flex flex-col gap-2">
+			{label && (
+				<label className="font-semibold text-[#1C293C] text-[15px]">
+					{label}
+				</label>
+			)}
+			<textarea
+				className={`
+          w-full px-4 py-3
+          text-[15px] font-['Inter']
+          border-[3px] border-[#1C293C]
           bg-white
-          border-2
-          border-[#263D5B]
-          rounded-[12px]
-          text-[#111827]
-          text-base
-          placeholder:text-[#6B7280]
-          placeholder:italic
           outline-none
-          transition-all
-          duration-150
+          transition-all duration-150
           resize-none
-          focus:border-[#49B6E5]
-          focus:shadow-[3px_3px_0px_#49B6E5]
-          disabled:opacity-50
-          disabled:cursor-not-allowed
-          ${error ? 'border-[#DC2626] focus:border-[#DC2626] focus:shadow-[3px_3px_0px_#DC2626]' : ''}
+          focus:border-[#432DD7] focus:shadow-[4px_4px_0_#432DD7]
+          placeholder:text-[#6B7280]
+          disabled:border-[#E5E7EB] disabled:bg-[#F3F4F6] disabled:cursor-not-allowed
+          ${error ? "border-[#DC2626] focus:border-[#DC2626] focus:shadow-[4px_4px_0_#DC2626]" : ""}
           ${className}
         `}
-        {...props}
-      />
-      {error && (
-        <span className="font-['Comfortaa', cursive] text-[#DC2626] text-sm">
-          ✏️ {error}
-        </span>
-      )}
-    </div>
-  );
+				{...props}
+			/>
+			{error && <span className="text-[#DC2626] text-[13px]">{error}</span>}
+			{helperText && !error && (
+				<span className="text-[#6B7280] text-[13px]">{helperText}</span>
+			)}
+		</div>
+	);
 };
 
 export default Textarea;

@@ -1,60 +1,73 @@
-import React from 'react';
+import React, { ChangeEvent } from 'react';
 
-export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+export interface InputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange'> {
   label?: string;
   error?: string;
   icon?: React.ReactNode;
+  iconLeft?: React.ReactNode;
+  onChange?: ((value: string) => void) | ((e: ChangeEvent<HTMLInputElement>) => void);
 }
 
 export const Input: React.FC<InputProps> = ({
   label,
   error,
   icon,
+  iconLeft,
   className = '',
+  onChange,
   ...props
 }) => {
+  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
+    if (!onChange) return;
+    (onChange as (value: string) => void)(e.target.value);
+  };
+
+  const baseInput = `
+    font-['Inter', sans-serif]
+    w-full
+    px-4
+    py-3
+    bg-white
+    border-[3px]
+    text-[17px]
+    text-[#1C293C]
+    placeholder:text-[#6B7280]
+    placeholder:italic
+    outline-none
+    transition-all
+    duration-100
+  `;
+
+  const stateStyles = error 
+    ? 'border-[#DC2626] focus:border-[#DC2626] focus:shadow-[4px_4px_0_#DC2626]' 
+    : 'border-[#1C293C] focus:border-[#432DD7] focus:shadow-[4px_4px_0_#432DD7]';
+
   return (
     <div className="flex flex-col gap-2">
       {label && (
-        <label className="font-['Comfortaa', cursive] text-[#263D5B] text-base">
+        <label className="font-['Inter', sans-serif] font-semibold text-[#1C293C] text-base">
           {label}
         </label>
       )}
       <div className="relative">
-        {icon && (
-          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[#6B7280]">
-            {icon}
+        {(icon || iconLeft) && (
+          <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[#6B7280]">
+            {iconLeft || icon}
           </div>
         )}
         <input
           className={`
-            font-['Comfortaa', cursive]
-            w-full
-            px-4 py-3
-            bg-white
-            border-2
-            border-[#263D5B]
-            rounded-[12px]
-            text-[#111827]
-            text-base
-            placeholder:text-[#6B7280]
-            placeholder:italic
-            outline-none
-            transition-all
-            duration-150
-            focus:border-[#49B6E5]
-            focus:shadow-[3px_3px_0px_#49B6E5]
-            disabled:opacity-50
-            disabled:cursor-not-allowed
-            ${icon ? 'pl-10' : ''}
-            ${error ? 'border-[#DC2626] focus:border-[#DC2626] focus:shadow-[3px_3px_0px_#DC2626]' : ''}
+            ${baseInput}
+            ${stateStyles}
+            ${(icon || iconLeft) ? 'pl-12' : ''}
             ${className}
           `}
+          onChange={handleChange}
           {...props}
         />
       </div>
       {error && (
-        <span className="font-['Comfortaa', cursive] text-[#DC2626] text-sm">
+        <span className="font-['Inter', sans-serif] font-medium text-[#DC2626] text-sm">
           ✏️ {error}
         </span>
       )}

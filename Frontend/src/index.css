@@ -6,14 +6,14 @@
 
 @layer base {
   :root {
-    --lms-primary: 73 182 229;
-    --lms-text-primary: 17 24 39;
+    --lms-primary: 248 200 0;
+    --lms-text-primary: 28 41 60;
     --lms-text-secondary: 107 114 128;
-    --lms-bg-primary: 248 246 243;
+    --lms-bg-primary: 251 251 249;
     --lms-bg-secondary: 255 255 255;
-    --lms-border: 229 225 220;
+    --lms-border: 28 41 60;
     
-    font-family: 'Comfortaa', cursive, system-ui, -apple-system, sans-serif;
+    font-family: 'Inter', sans-serif, system-ui, -apple-system, sans-serif;
     line-height: 1.6;
     font-synthesis: none;
     text-rendering: optimizeLegibility;

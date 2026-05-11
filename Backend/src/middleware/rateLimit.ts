@@ -18,12 +18,11 @@ export const authRateLimiter = rateLimit({
 
 export const loginRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5,
+  max: 100,
   message: { error: 'Too many login attempts, please try again later' },
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
-    const ip = req.ip || '';
-    return ip || req.body?.email || 'unknown';
+    return req.body?.email || req.ip || 'unknown';
   },
 });

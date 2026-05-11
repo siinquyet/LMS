@@ -1,48 +1,48 @@
-import React from 'react';
+import type React from "react";
 
 export interface BadgeProps {
   children: React.ReactNode;
-  variant?: 'default' | 'primary' | 'success' | 'warning' | 'danger';
-  size?: 'sm' | 'md';
+  variant?: "primary" | "secondary" | "success" | "warning" | "danger" | "default";
+  size?: "sm" | "md" | "lg";
   className?: string;
 }
 
 export const Badge: React.FC<BadgeProps> = ({
-  children,
-  variant = 'default',
-  size = 'md',
-  className = '',
+	children,
+	variant = "primary",
+	size = "md",
+	className = "",
 }) => {
-  const variantStyles = {
-    default: 'text-[#263D5B] border-[#263D5B] bg-[#F8F6F3]',
-    primary: 'text-[#49B6E5] border-[#49B6E5] bg-[#E8F6FC]',
-    success: 'text-[#16A34A] border-[#16A34A] bg-[#ECFDF5]',
-    warning: 'text-[#D97706] border-[#D97706] bg-[#FFFBEB]',
-    danger: 'text-[#DC2626] border-[#DC2626] bg-[#FEF2F2]',
-  };
+	const variantStyles = {
+		primary: "bg-[#FDC800] text-[#1C293C] border-[3px] border-[#1C293C]",
+		secondary: "bg-[#432DD7] text-white border-[3px] border-[#1C293C]",
+		success: "bg-[#16A34A] text-white border-[3px] border-[#1C293C]",
+		warning: "bg-[#D97706] text-white border-[3px] border-[#1C293C]",
+		danger: "bg-[#DC2626] text-white border-[3px] border-[#1C293C]",
+		default: "bg-white text-[#1C293C] border-[3px] border-[#1C293C]",
+	};
 
-  const sizeStyles = {
-    sm: 'px-2 py-0.5 text-xs',
-    md: 'px-3 py-1 text-sm',
-  };
+	const sizeStyles = {
+		sm: "px-2 py-0.5 text-[11px]",
+		md: "px-3 py-1 text-[13px]",
+		lg: "px-4 py-1.5 text-[15px]",
+	};
 
-  return (
-    <span
-      className={`
-        font-['Comfortaa', cursive]
+	return (
+		<span
+			className={`
         inline-flex
         items-center
-        rounded-full
-        border-2
-        font-medium
+        font-semibold
+        uppercase
         ${variantStyles[variant]}
         ${sizeStyles[size]}
         ${className}
       `}
-    >
-      {children}
-    </span>
-  );
+		>
+			{children}
+		</span>
+	);
 };
 
 export default Badge;
