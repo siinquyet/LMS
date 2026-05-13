@@ -11,7 +11,6 @@ enum Role {
   hoc_vien
   giang_vien
   admin
-  super_admin
 }
 
 enum CourseStatus {
@@ -20,6 +19,7 @@ enum CourseStatus {
   pending
   approved
   rejected
+  published
 }
 
 enum LessonType {
@@ -68,73 +68,16 @@ enum UserStatus {
   suspended
 }
 
-model Organization {
-  id        Int       @id @default(autoincrement())
-  name      String    @map("ten")
-  slug      String    @unique @map("slug")
-  domain    String?   @map("domain")
-  isActive  Boolean   @default(true) @map("dang_hoat_dong")
-  isDefault Boolean   @default(false) @map("mac_dinh")
-  createdAt DateTime  @default(now()) @map("ngay_tao")
-  updatedAt DateTime  @updatedAt @map("ngay_cap_nhat")
-  settings  OrganizationSettings?
-  users     User[]
-  courses   Course[]
-  categories Category[]
-  orders    Order[]
-  enrollments Enrollment[]
-  notifications Notification[]
-  forumTopics ForumTopic[]
-  forumReplies ForumReply[]
-  topicCategories TopicCategory[]
-  forumPosts  ForumPost[]
-  chapters Chapter[]
-  lessons Lesson[]
-  comments Comment[]
-  quizzes Quiz[]
-  quizQuestions QuizQuestion[]
-  quizAttempts QuizAttempt[]
-  assignments Assignment[]
-  assignmentSubmissions AssignmentSubmission[]
-  progress Progress[]
-  orderItems OrderItem[]
-  payments Payment[]
-  carts    Cart[]
-  rolePermissions RolePermission[]
-  userPermissions UserPermission[]
-  auditLogs AuditLog[]
-  reviews   Review[]
-  medias    Media[]
 
-  @@map("to_chuc")
-}
 
-model OrganizationSettings {
-  id              Int          @id @default(autoincrement())
-  organizationId  Int          @unique @map("to_chuc_id")
-  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  platformName    String       @default("LMS Platform") @map("ten_nen_tang")
-  logo            String?      @map("logo")
-  commissionRate  Float        @default(30) @map("ti_le_hoa_hong")
-  refundDays      Int          @default(7) @map("so_ngay_hoan_tien")
-  contactEmail    String?      @map("email_lien_he")
-  theme           String?      @map("giao_dien")
-  createdAt       DateTime     @default(now()) @map("ngay_tao")
-  updatedAt       DateTime     @updatedAt @map("ngay_cap_nhat")
 
-  @@map("cai_dat_to_chuc")
-}
 
 model RolePermission {
   id              Int          @id @default(autoincrement())
   role            Role         @map("vai_tro")
   permission      Permission   @map("quyen")
-  organizationId  Int          @map("to_chuc_id")
-  organization    Organization @relation(fields: [organizationId], references: [id])
   createdAt       DateTime    @default(now()) @map("ngay_tao")
 
-  @@unique([role, permission, organizationId])
-  @@index([organizationId])
   @@map("vai_tro_quyen")
 }
 
@@ -144,13 +87,9 @@ model UserPermission {
   user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   permission      Permission   @map("quyen")
   granted        Boolean      @default(true) @map("duoc_cap")
-  organizationId  Int          @map("to_chuc_id")
-  organization    Organization @relation(fields: [organizationId], references: [id])
   createdAt       DateTime    @default(now()) @map("ngay_tao")
 
-  @@unique([userId, permission, organizationId])
   @@index([userId])
-  @@index([organizationId])
   @@map("nguoi_dung_quyen")
 }
 
@@ -207,12 +146,9 @@ model AuditLog {
   details         Json?        @map("chi_tiet")
   ipAddress       String?      @map("dia_chi_ip")
   userAgent       String?      @map("trinh_duyet")
-  organizationId  Int          @map("to_chuc_id")
-  organization    Organization @relation(fields: [organizationId], references: [id])
   createdAt       DateTime     @default(now()) @map("ngay_tao")
 
   @@index([userId])
-  @@index([organizationId])
   @@index([createdAt])
   @@map("nhat_ky_he_thong")
 }
@@ -235,8 +171,6 @@ model User {
   joinedAt              DateTime               @map("ngay_tham_gia")
   role                  Role                   @default(hoc_vien) @map("vai_tro")
   tokenVersion          Int                    @default(0) @map("token_version")
-  organizationId        Int                    @map("to_chuc_id")
-  organization          Organization           @relation(fields: [organizationId], references: [id])
   taughtCourses         Course[]               @relation("CourseInstructor")
   enrollments           Enrollment[]
   lessonProgress        Progress[]
@@ -261,19 +195,14 @@ model User {
   reviews              Review[]
   medias               Media[]
 
-  @@index([organizationId])
   @@map("nguoi_dung")
 }
 
 model Category {
   id            Int        @id @default(autoincrement())
   name          String     @map("ten")
-  organizationId Int       @map("to_chuc_id")
-  organization  Organization @relation(fields: [organizationId], references: [id])
   courses       Course[]
 
-  @@unique([name, organizationId])
-  @@index([organizationId])
   @@map("danh_muc")
 }
 
@@ -283,24 +212,22 @@ model Course {
   instructorId         Int            @map("giang_vien_id")
   categoryId           Int            @map("danh_muc_id")
   price                Int            @map("gia")
-  maxStudents          Int?           @map("so_luong_toi_da")
+  
   enrolledCount        Int            @default(0) @map("so_luong_da_dang_ky")
   status               CourseStatus   @default(draft) @map("trang_thai")
   description          String?        @map("mo_ta")
   requirements         Json?          @map("yeu_cau")
   deviceRequirements   Json?          @map("ban_thiet_bi")
-  thumbnailUrl         String?        @map("thumbnail")
+  
   imageUrl             String?        @map("hinh_anh")
   level                String?        @map("muc_do")
   duration             String?        @map("thoi_luong")
   lessonCount          Int?           @map("so_bai_hoc")
   rating               Float?         @map("xep_hang")
   learningOutcomes     Json?          @map("what_you_learn")
-  organizationId        Int            @map("to_chuc_id")
   createdAt             DateTime       @default(now()) @map("created_at")
   instructor           User           @relation("CourseInstructor", fields: [instructorId], references: [id])
   category             Category       @relation(fields: [categoryId], references: [id])
-  organization         Organization   @relation(fields: [organizationId], references: [id])
   chapters             Chapter[]
   enrollments          Enrollment[]
   orderItems           OrderItem[]
@@ -310,7 +237,6 @@ model Course {
 
   @@index([instructorId])
   @@index([categoryId])
-  @@index([organizationId])
   @@map("khoa_hoc")
 }
 
@@ -319,13 +245,10 @@ model Chapter {
   courseId      Int        @map("khoa_hoc_id")
   title         String     @map("tieu_de")
   order         Int        @map("thu_tu")
-  organizationId Int       @map("to_chuc_id")
   course        Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  organization  Organization @relation(fields: [organizationId], references: [id])
   lessons       Lesson[]
 
   @@index([courseId])
-  @@index([organizationId])
   @@map("chuong_hoc")
 }
 
@@ -338,16 +261,13 @@ model Lesson {
   type          LessonType   @default(video) @map("loai")
   duration      String?      @map("thoi_luong")
   content       String?      @map("noi_dung")
-  organizationId Int         @map("to_chuc_id")
   chapter       Chapter      @relation(fields: [chapterId], references: [id], onDelete: Cascade)
-  organization  Organization @relation(fields: [organizationId], references: [id])
   progress      Progress[]
   comments      Comment[]
   quizzes       Quiz[]
   assignments   Assignment[]
 
   @@index([chapterId])
-  @@index([organizationId])
   @@map("bai_hoc")
 }
 
@@ -357,15 +277,12 @@ model Enrollment {
   courseId       Int        @map("khoa_hoc_id")
   enrolledAt     DateTime   @default(now()) @map("ngay_dang_ky")
   completedAt    DateTime?  @map("ngay_hoan_thanh")
-  organizationId Int        @map("to_chuc_id")
   user           User       @relation(fields: [userId], references: [id])
   course         Course     @relation(fields: [courseId], references: [id])
-  organization   Organization @relation(fields: [organizationId], references: [id])
 
   @@unique([userId, courseId])
   @@index([courseId])
   @@index([userId])
-  @@index([organizationId])
   @@map("dang_ky_khoa_hoc")
 }
 
@@ -374,14 +291,11 @@ model Progress {
   lessonId       Int       @map("bai_hoc_id")
   completed      Boolean   @default(false) @map("da_hoan_thanh")
   completedAt    DateTime? @map("ngay_hoan_thanh")
-  organizationId Int       @map("to_chuc_id")
   user           User      @relation(fields: [userId], references: [id])
   lesson         Lesson    @relation(fields: [lessonId], references: [id])
-  organization   Organization @relation(fields: [organizationId], references: [id])
 
   @@id([userId, lessonId])
   @@index([lessonId])
-  @@index([organizationId])
   @@map("tien_do_bai_hoc")
 }
 
@@ -389,15 +303,12 @@ model Cart {
   id             Int         @id @default(autoincrement())
   userId         Int         @map("nguoi_dung_id")
   courseId       Int         @map("khoa_hoc_id")
-  organizationId Int         @map("to_chuc_id")
   user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   course         Course      @relation(fields: [courseId], references: [id])
-  organization   Organization @relation(fields: [organizationId], references: [id])
   createdAt      DateTime    @default(now()) @map("ngay_tao")
 
   @@unique([userId, courseId])
   @@index([userId])
-  @@index([organizationId])
   @@map("gio_hang")
 }
 
@@ -407,14 +318,11 @@ model Order {
   totalAmount    Int          @map("tong_tien")
   status         OrderStatus  @default(pending) @map("trang_thai")
   orderedAt      DateTime     @default(now()) @map("ngay_dat")
-  organizationId Int          @map("to_chuc_id")
   user           User         @relation(fields: [userId], references: [id])
-  organization   Organization @relation(fields: [organizationId], references: [id])
   items          OrderItem[]
   payments       Payment[]
 
   @@index([userId])
-  @@index([organizationId])
   @@map("don_hang")
 }
 
@@ -423,14 +331,11 @@ model OrderItem {
   orderId        Int        @map("don_hang_id")
   courseId       Int        @map("khoa_hoc_id")
   price          Int        @map("gia")
-  organizationId Int        @map("to_chuc_id")
   order          Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
   course         Course     @relation(fields: [courseId], references: [id])
-  organization   Organization @relation(fields: [organizationId], references: [id])
 
   @@index([orderId])
   @@index([courseId])
-  @@index([organizationId])
   @@map("chi_tiet_don_hang")
 }
 
@@ -441,12 +346,9 @@ model Payment {
   status         PaymentStatus @default(pending) @map("trang_thai")
   paidAt         DateTime?     @map("ngay_thanh_toan")
   method         String?       @map("phuong_thuc")
-  organizationId Int           @map("to_chuc_id")
   order          Order         @relation(fields: [orderId], references: [id])
-  organization   Organization  @relation(fields: [organizationId], references: [id])
 
   @@index([orderId])
-  @@index([organizationId])
   @@map("thanh_toan")
 }
 
@@ -457,17 +359,14 @@ model Comment {
   content        String    @map("noi_dung")
   parentId       Int?      @map("parent_id")
   createdAt      DateTime  @map("ngay_tao")
-  organizationId Int       @map("to_chuc_id")
   lesson         Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
   user           User      @relation(fields: [userId], references: [id])
-  organization   Organization @relation(fields: [organizationId], references: [id])
   parent         Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
   replies        Comment[] @relation("CommentReplies")
 
   @@index([lessonId])
   @@index([userId])
   @@index([parentId])
-  @@index([organizationId])
   @@map("binh_luan")
 }
 
@@ -480,12 +379,9 @@ model Notification {
   isRead         Boolean          @default(false) @map("da_doc")
   createdAt      DateTime         @map("ngay_tao")
   link           String?
-  organizationId Int               @map("to_chuc_id")
   user           User             @relation(fields: [userId], references: [id])
-  organization   Organization     @relation(fields: [organizationId], references: [id])
 
   @@index([userId])
-  @@index([organizationId])
   @@map("thong_bao")
 }
 
@@ -499,16 +395,13 @@ model ForumTopic {
   replyCount     Int          @default(0) @map("luot_tra_loi")
   createdAt      DateTime     @map("ngay_tao")
   updatedAt      DateTime     @map("ngay_cap_nhat")
-  organizationId Int          @map("to_chuc_id")
   user           User         @relation(fields: [userId], references: [id])
   course         Course?      @relation(fields: [courseId], references: [id])
-  organization   Organization  @relation(fields: [organizationId], references: [id])
   replies        ForumReply[]
   posts          ForumPost[]
 
   @@index([userId])
   @@index([courseId])
-  @@index([organizationId])
   @@map("chu_de_forum")
 }
 
@@ -518,14 +411,11 @@ model ForumReply {
   userId         Int        @map("nguoi_dung_id")
   content        String     @map("noi_dung")
   createdAt      DateTime   @map("ngay_tao")
-  organizationId Int        @map("to_chuc_id")
   topic          ForumTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
   user           User       @relation(fields: [userId], references: [id])
-  organization   Organization @relation(fields: [organizationId], references: [id])
 
   @@index([topicId])
   @@index([userId])
-  @@index([organizationId])
   @@map("tra_loi_forum")
 }
 
@@ -535,14 +425,11 @@ model Quiz {
   title           String         @map("tieu_de")
   timeLimit       Int?           @map("thoi_gian_lam")
   questionCount   Int            @map("so_cau_hoi")
-  organizationId  Int            @map("to_chuc_id")
   lesson          Lesson         @relation(fields: [lessonId], references: [id], onDelete: Cascade)
-  organization    Organization   @relation(fields: [organizationId], references: [id])
   questions       QuizQuestion[]
   attempts        QuizAttempt[]
 
   @@index([lessonId])
-  @@index([organizationId])
   @@map("bai_kiem_tra")
 }
 
@@ -552,12 +439,9 @@ model QuizQuestion {
   question       String   @map("cau_hoi")
   options        Json     @map("lua_chon")
   correctAnswer  String   @map("dap_an_dung")
-  organizationId Int      @map("to_chuc_id")
   quiz           Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
-  organization   Organization @relation(fields: [organizationId], references: [id])
 
   @@index([quizId])
-  @@index([organizationId])
   @@map("cau_hoi")
 }
 
@@ -568,14 +452,11 @@ model QuizAttempt {
   score          Float     @map("diem")
   feedback       String?   @map("nhan_xet")
   takenAt        DateTime  @map("ngay_lam")
-  organizationId Int       @map("to_chuc_id")
   quiz           Quiz      @relation(fields: [quizId], references: [id], onDelete: Cascade)
   user           User      @relation(fields: [userId], references: [id])
-  organization   Organization @relation(fields: [organizationId], references: [id])
 
   @@index([quizId])
   @@index([userId])
-  @@index([organizationId])
   @@map("lam_bai")
 }
 
@@ -586,13 +467,10 @@ model Assignment {
   description    String                @map("mo_ta")
   isRequired     Boolean               @default(false) @map("bat_buoc")
   dueAt          DateTime?             @map("han_nop")
-  organizationId Int                   @map("to_chuc_id")
   lesson         Lesson                @relation(fields: [lessonId], references: [id], onDelete: Cascade)
-  organization   Organization          @relation(fields: [organizationId], references: [id])
   submissions    AssignmentSubmission[]
 
   @@index([lessonId])
-  @@index([organizationId])
   @@map("bai_tap")
 }
 
@@ -605,14 +483,11 @@ model AssignmentSubmission {
   score          Float?      @map("diem")
   feedback       String?     @map("nhan_xet")
   submittedAt    DateTime    @map("ngay_nop")
-  organizationId Int         @map("to_chuc_id")
   assignment     Assignment  @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
   user           User        @relation(fields: [userId], references: [id])
-  organization   Organization @relation(fields: [organizationId], references: [id])
 
   @@unique([assignmentId, userId])
   @@index([userId])
-  @@index([organizationId])
   @@map("nop_bai")
 }
 
@@ -627,15 +502,12 @@ model Review {
   status        String      @default("published") @map("trang_thai")
   createdAt     DateTime    @default(now()) @map("ngay_tao")
   updatedAt     DateTime    @updatedAt @map("ngay_cap_nhat")
-  organizationId Int       @map("to_chuc_id")
   user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   course        Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  organization  Organization @relation(fields: [organizationId], references: [id])
 
   @@unique([userId, courseId])
   @@index([courseId])
   @@index([userId])
-  @@index([organizationId])
   @@map("danh_gia")
 }
 
@@ -648,13 +520,10 @@ model TopicCategory {
   color       String    @default("#432DD7") @map("mau_sac")
   isActive    Boolean   @default(true) @map("dang_hoat_dong")
   sortOrder   Int       @default(0) @map("thu_tu")
-  organizationId Int    @map("to_chuc_id")
-  organization Organization @relation(fields: [organizationId], references: [id])
   posts       ForumPost[]
   createdAt   DateTime  @default(now()) @map("ngay_tao")
   updatedAt   DateTime  @updatedAt @map("ngay_cap_nhat")
 
-  @@index([organizationId])
   @@map("danh_muc_forum")
 }
 
@@ -673,19 +542,16 @@ model ForumPost {
   isLocked     Boolean      @default(false) @map("bi_khoa")
   createdAt    DateTime     @default(now()) @map("ngay_tao")
   updatedAt    DateTime     @updatedAt @map("ngay_cap_nhat")
-  organizationId Int         @map("to_chuc_id")
 
   user         User         @relation(fields: [userId], references: [id])
   category     TopicCategory? @relation(fields: [categoryId], references: [id])
   originalTopic ForumTopic?  @relation(fields: [topicId], references: [id])
-  organization Organization @relation(fields: [organizationId], references: [id])
   reactions    PostReaction[]
   comments     ForumComment[]
   saves        PostSave[]
 
   @@index([userId])
   @@index([categoryId])
-  @@index([organizationId])
   @@map("bai_viet_forum")
 }
 
@@ -767,15 +633,12 @@ model Media {
   entityType    String    @map("loai_entity")
   entityId      Int       @map("entity_id")
   uploadedBy    Int       @map("nguoi_tai_len")
-  organizationId Int      @map("to_chuc_id")
   createdAt     DateTime  @default(now()) @map("ngay_tao")
 
   uploader      User         @relation(fields: [uploadedBy], references: [id])
-  organization  Organization @relation(fields: [organizationId], references: [id])
 
   @@index([entityType, entityId])
   @@index([uploadedBy])
-  @@index([organizationId])
   @@map("media")
 }
 
@@ -789,13 +652,11 @@ model Earnings {
   commissionAmount Int         @map("so_tien_hoa_hong")
   netAmount       Int          @map("so_tien_thuc_nhan")
   status          String       @default("available") @map("trang_thai")
-  organizationId  Int          @map("to_chuc_id")
   createdAt       DateTime     @default(now()) @map("ngay_tao")
 
   @@index([teacherId])
   @@index([courseId])
   @@index([orderId])
-  @@index([organizationId])
   @@map("thu_nhap")
 }
 
@@ -806,11 +667,9 @@ model PayoutRequest {
   bankName        String       @default("") @map("ten_ngan_hang")
   bankAccount     String       @default("") @map("so_tai_khoan")
   status          String       @default("pending") @map("trang_thai")
-  organizationId  Int          @map("to_chuc_id")
   createdAt       DateTime     @default(now()) @map("ngay_tao")
   processedAt     DateTime?    @map("ngay_xu_ly")
 
   @@index([teacherId])
-  @@index([organizationId])
   @@map("yeu_cau_rut_tien")
 }

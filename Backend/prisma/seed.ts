@@ -25,7 +25,6 @@ import {
 const prisma = new PrismaClient();
 
 const toDate = (value: string | undefined) => (value ? new Date(value) : undefined);
-const ORG_ID = 1;
 
 async function main() {
   await prisma.auditLog.deleteMany();
@@ -50,17 +49,7 @@ async function main() {
   await prisma.chapter.deleteMany();
   await prisma.course.deleteMany();
   await prisma.category.deleteMany();
-  await prisma.organizationSettings.deleteMany();
   await prisma.user.deleteMany();
-  await prisma.organization.deleteMany();
-
-  await prisma.organization.create({
-    data: { id: ORG_ID, name: 'Default Organization', slug: 'default' },
-  });
-
-  await prisma.organizationSettings.create({
-    data: { organizationId: ORG_ID },
-  });
 
   for (const user of users) {
       const hashedPassword = await bcrypt.hash(user.mat_khau, 10);
@@ -79,7 +68,7 @@ async function main() {
           isLocked: user.bi_khoa,
           joinedAt: new Date(user.ngay_tham_gia),
           role: user.vai_tro,
-          organizationId: ORG_ID,
+          
         },
       });
     }
@@ -88,7 +77,7 @@ async function main() {
     data: categories.map((category) => ({
       id: category.id,
       name: category.ten,
-      organizationId: ORG_ID,
+      
     })),
   });
 
@@ -99,20 +88,20 @@ async function main() {
       instructorId: course.giang_vien_id,
       categoryId: course.danh_muc_id,
       price: course.gia,
-      maxStudents: course.so_luong_toi_da,
+      
       enrolledCount: course.so_luong_da_dang_ky,
       status: course.trang_thai,
       description: course.mo_ta,
       requirements: course.yeu_cau ?? course.requirements,
       deviceRequirements: course.ban_thiet_bi,
-      thumbnailUrl: course.thumbnail,
+      
       imageUrl: course.hinh_anh,
       level: course.muc_do,
       duration: course.thoi_luong,
       lessonCount: course.so_bai_hoc,
       rating: course.xep_hang,
       learningOutcomes: course.whatYouLearn,
-      organizationId: ORG_ID,
+      
     })),
   });
 
@@ -122,7 +111,7 @@ async function main() {
       courseId: chapter.khoa_hoc_id,
       title: chapter.tieu_de,
       order: chapter.thu_tu,
-      organizationId: ORG_ID,
+      
     })),
   });
 
@@ -136,7 +125,7 @@ async function main() {
       type: lesson.loai,
       duration: lesson.thoi_luong,
       content: lesson.noi_dung,
-      organizationId: ORG_ID,
+      
     })),
   });
 
@@ -148,7 +137,7 @@ async function main() {
       userId: enrollment.nguoi_dung_id,
       courseId: enrollment.khoa_hoc_id,
       enrolledAt: new Date(enrollment.ngay_dang_ky),
-      organizationId: ORG_ID,
+      
     })),
   });
 
@@ -158,7 +147,7 @@ async function main() {
       lessonId: item.bai_hoc_id,
       completed: item.da_hoan_thanh,
       completedAt: toDate(item.ngay_hoan_thanh),
-      organizationId: ORG_ID,
+      
     })),
   });
 
@@ -169,7 +158,7 @@ async function main() {
       totalAmount: order.tong_tien,
       status: order.trang_thai,
       orderedAt: new Date(order.ngay_dat),
-      organizationId: ORG_ID,
+      
     })),
   });
 
@@ -179,7 +168,7 @@ async function main() {
       orderId: item.don_hang_id,
       courseId: item.khoa_hoc_id,
       price: item.gia,
-      organizationId: ORG_ID,
+      
     })),
   });
 
@@ -191,7 +180,7 @@ async function main() {
       status: payment.trang_thai,
       paidAt: new Date(payment.ngay_thanh_toan),
       method: payment.phuong_thuc,
-      organizationId: ORG_ID,
+      
     })),
   });
 
@@ -203,7 +192,7 @@ async function main() {
       content: comment.noi_dung,
       parentId: comment.parent_id,
       createdAt: new Date(comment.ngay_tao),
-      organizationId: ORG_ID,
+      
     })),
   });
 
@@ -217,7 +206,7 @@ async function main() {
       isRead: notification.da_doc,
       createdAt: new Date(notification.ngay_tao),
       link: notification.link,
-      organizationId: ORG_ID,
+      
     })),
   });
 
@@ -232,7 +221,7 @@ async function main() {
       replyCount: topic.luot_tra_loi,
       createdAt: new Date(topic.ngay_tao),
       updatedAt: new Date(topic.ngay_cap_nhat),
-      organizationId: ORG_ID,
+      
     })),
   });
 
@@ -243,7 +232,7 @@ async function main() {
       userId: reply.nguoi_dung_id,
       content: reply.noi_dung,
       createdAt: new Date(reply.ngay_tao),
-      organizationId: ORG_ID,
+      
     })),
   });
 
@@ -254,7 +243,7 @@ async function main() {
       title: quiz.tieu_de,
       timeLimit: quiz.thoi_gian_lam,
       questionCount: quiz.so_cau_hoi,
-      organizationId: ORG_ID,
+      
     })),
   });
 
@@ -265,7 +254,7 @@ async function main() {
       question: question.cau_hoi,
       options: question.lua_chon,
       correctAnswer: question.dap_an_dung,
-      organizationId: ORG_ID,
+      
     })),
   });
 
@@ -276,7 +265,7 @@ async function main() {
       userId: attempt.nguoi_dung_id,
       score: attempt.diem,
       takenAt: new Date(attempt.ngay_lam),
-      organizationId: ORG_ID,
+      
     })),
   });
 
@@ -300,7 +289,7 @@ async function main() {
       description: assignment.mo_ta,
       isRequired: assignment.bat_buoc,
       dueAt: toDate(assignment.han_nop),
-      organizationId: ORG_ID,
+      
     })),
   });
 
@@ -318,7 +307,7 @@ async function main() {
         score: submission.diem,
         feedback: submission.nhan_xet,
         submittedAt: new Date(submission.ngay_nop),
-        organizationId: ORG_ID,
+        
       })),
   });
 

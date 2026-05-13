@@ -8,9 +8,10 @@ import {
 	X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Badge, Button, Card } from "../components/common";
 import { getAssignments } from "../api";
+import { getCurrentUser } from "../api";
 
 interface Course {
 	id: number;
@@ -53,7 +54,9 @@ export const AssignmentsPage: React.FC = () => {
 		const fetchAssignments = async () => {
 			try {
 				setLoading(true);
-				const data = await getAssignments() as AssignmentResponse;
+				const currentUser = getCurrentUser();
+				const userId = currentUser?.id;
+				const data = await getAssignments(userId) as AssignmentResponse;
 				setAssignments(data.assignments || []);
 				setError(null);
 			} catch (err) {

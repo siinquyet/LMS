@@ -82,10 +82,6 @@ router.post('/upload', authenticate, async (req: any, res) => {
 
       const url = `/uploads/${entityType === 'user' ? 'avatars' : entityType === 'forum_post' ? 'forum' : 'courses'}/${file.filename}`;
       const userId = req.user.id;
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { organizationId: true }
-      });
 
       const entityId = parseInt(req.body.entityId) || 0;
 
@@ -112,7 +108,7 @@ router.post('/upload', authenticate, async (req: any, res) => {
           entityType: entityType || 'user',
           entityId: entityId || userId,
           uploadedBy: userId,
-          organizationId: user!.organizationId
+          
         }
       });
 
@@ -171,7 +167,7 @@ router.delete('/:id', authenticate, async (req: any, res) => {
       return;
     }
 
-    if (media.uploadedBy !== userId && !['admin', 'super_admin'].includes(userRole)) {
+    if (media.uploadedBy !== userId && !['admin'].includes(userRole)) {
       res.status(403).json({ error: 'Not authorized' });
       return;
     }

@@ -175,6 +175,7 @@ export const getCourses = async (params?: {
 	sortBy?: "newest" | "popular" | "price-asc" | "price-desc";
 	page?: number;
 	limit?: number;
+	level?: string;
 }) => {
 	const query = new URLSearchParams();
 	if (params?.categoryId) query.set("categoryId", String(params.categoryId));
@@ -189,7 +190,18 @@ export const getCourses = async (params?: {
 	if (params?.sortBy) query.set("sortBy", params.sortBy);
 	if (params?.page) query.set("page", String(params.page));
 	if (params?.limit) query.set("limit", String(params.limit));
-	const res = await fetch(`${API_BASE}/api/courses?${query}`);
+	if (params?.level) query.set("level", params.level);
+
+	const headers = getHeaders();
+	const userItem = localStorage.getItem("user");
+	if (userItem) {
+		try {
+			const user = JSON.parse(userItem);
+			if (user?.id) headers["x-user-id"] = String(user.id);
+		} catch {}
+	}
+
+	const res = await fetch(`${API_BASE}/api/courses?${query}`, { headers });
 	return handleResponse(res);
 };
 
@@ -1034,5 +1046,29 @@ export const deleteMedia = async (id: number) => {
 
 export const getMediaByEntity = async (entityType: string, entityId: number) => {
 	const res = await fetch(`${API_BASE}/api/media?entityType=${entityType}&entityId=${entityId}`, { headers: getHeaders() });
+	return handleResponse(res);
+};
+
+export const getLessonResources = async (lessonId: number) => {
+	const res = await fetch(`${API_BASE}/api/lessons/${lessonId}/resources`, { headers: getHeaders() });
+	return handleResponse(res);
+};
+
+export const uploadLessonResource = async (lessonId: number, file: File) => {
+	const formData = new FormData();
+	formData.append('file', file);
+	const res = await fetch(`${API_BASE}/api/lessons/${lessonId}/resources`, {
+		method: 'POST',
+		headers: { 'Authorization': localStorage.getItem('token') ? `Bearer ${localStorage.getItem('token')}` : '' },
+		body: formData,
+	});
+	return handleResponse(res);
+};
+
+export const deleteLessonResource = async (resourceId: number) => {
+	const res = await fetch(`${API_BASE}/api/lessons/resources/${resourceId}`, {
+		method: 'DELETE',
+		headers: getHeaders(),
+	});
 	return handleResponse(res);
 };

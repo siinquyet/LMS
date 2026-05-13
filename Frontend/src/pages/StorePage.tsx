@@ -87,7 +87,7 @@ export const StorePage: React.FC = () => {
     try {
       const [coursesRes, categoriesRes] = await Promise.all([
         api.getCourses({
-          status: "approved",
+          status: "completed",
           search: search || undefined,
           categoryId: category ? Number(category) : undefined,
           minPrice: priceMin ? Number(priceMin) : undefined,
@@ -95,6 +95,7 @@ export const StorePage: React.FC = () => {
           sortBy: sortBy as any,
           page: currentPage,
           limit: 12,
+          level: level || undefined,
         }),
         api.getCategories(),
       ]);

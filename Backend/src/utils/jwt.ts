@@ -6,7 +6,6 @@ const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'lms-refresh-secret
 export interface TokenPayload {
   userId: number;
   role: string;
-  organizationId: number;
 }
 
 export interface RefreshTokenPayload {

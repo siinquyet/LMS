@@ -11,7 +11,7 @@ import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '.
 import { globalRateLimiter, authRateLimiter, loginRateLimiter } from './middleware/rateLimit.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { authenticate, requireRole } from './middleware/auth.js';
-import { resolveTenant, requireTenant } from './middleware/tenant.js';
+
 import { loginSchema, registerSchema, refreshTokenSchema } from './utils/validators.js';
 import { authHandlers } from './utils/authHandlers.js';
 import { ZodError } from 'zod';
@@ -44,13 +44,6 @@ const parseOptionalId = (value: unknown) => {
   return parseId(value);
 };
 
-const getOrganizationId = (req: express.Request): number | null => {
-  if (req.tenant?.organizationId && req.tenant.organizationId > 0) {
-    return req.tenant.organizationId;
-  }
-  return req.user?.organizationId ?? null;
-};
-
 const serializeUser = (user: {
   id: number;
   username: string;
@@ -67,7 +60,6 @@ const serializeUser = (user: {
   lastLoginAt: Date | null;
   joinedAt: Date;
   role: string;
-  organizationId: number;
 }) => ({
   id: user.id,
   ten_dang_nhap: user.username,
@@ -84,7 +76,6 @@ const serializeUser = (user: {
   lan_dang_nhap_cuoi: user.lastLoginAt?.toISOString() ?? null,
   ngay_tham_gia: user.joinedAt.toISOString(),
   vai_tro: user.role,
-  to_chuc_id: user.organizationId,
 });
 
 const serializeCourse = (course: {
@@ -93,11 +84,10 @@ const serializeCourse = (course: {
   instructorId: number;
   categoryId: number;
   price: number;
-  maxStudents: number | null;
+  
   enrolledCount: number;
   status: string;
   description: string | null;
-  thumbnailUrl: string | null;
   imageUrl: string | null;
   level: string | null;
   duration: string | null;
@@ -113,12 +103,11 @@ const serializeCourse = (course: {
   giang_vien_id: course.instructorId,
   danh_muc_id: course.categoryId,
   gia: course.price,
-  so_luong_toi_da: course.maxStudents,
+  
   so_luong_da_dang_ky: course.enrolledCount,
   trang_thai: course.status,
   mo_ta: course.description,
-  thumbnail: course.thumbnailUrl,
-  hinh_anh: course.imageUrl,
+hinh_anh: course.imageUrl,
   muc_do: course.level,
   thoi_luong: course.duration,
   so_bai_hoc: course.lessonCount,
@@ -319,7 +308,7 @@ app.post('/api/auth/login', loginRateLimiter, async (req, res) => {
       return;
     }
 
-    const accessToken = generateAccessToken({ userId: user.id, role: user.role, organizationId: user.organizationId });
+    const accessToken = generateAccessToken({ userId: user.id, role: user.role });
     const refreshToken = generateRefreshToken({ userId: user.id, tokenVersion: user.tokenVersion });
 
     res.json({
@@ -341,32 +330,8 @@ app.post('/api/auth/register', authRateLimiter, async (req, res) => {
   try {
     const data = registerSchema.parse(req.body);
 
-    let defaultOrg = await prisma.organization.findFirst({
-      where: { isDefault: true },
-    });
-
-    if (!defaultOrg) {
-      defaultOrg = await prisma.organization.create({
-        data: {
-          name: 'Default Organization',
-          slug: 'default',
-          isDefault: true,
-        },
-      });
-
-      await prisma.organizationSettings.create({
-        data: {
-          organizationId: defaultOrg.id,
-        },
-      });
-
-      const { seedRolePermissions } = await import('./utils/permissions.js');
-      await seedRolePermissions(defaultOrg.id);
-    }
-
     const existingUser = await prisma.user.findFirst({
       where: {
-        organizationId: defaultOrg.id,
         OR: [
           { email: data.email },
           { username: data.username || data.email.split('@')[0] },
@@ -396,7 +361,6 @@ app.post('/api/auth/register', authRateLimiter, async (req, res) => {
         lastName,
         joinedAt: new Date(),
         role: data.role || 'hoc_vien',
-        organizationId: defaultOrg.id,
       },
     });
 
@@ -412,7 +376,7 @@ app.post('/api/auth/register', authRateLimiter, async (req, res) => {
       },
     });
 
-    const accessToken = generateAccessToken({ userId: user.id, role: user.role, organizationId: user.organizationId });
+    const accessToken = generateAccessToken({ userId: user.id, role: user.role });
     const refreshToken = generateRefreshToken({ userId: user.id, tokenVersion: user.tokenVersion });
 
     res.status(201).json({
@@ -431,14 +395,9 @@ app.post('/api/auth/register', authRateLimiter, async (req, res) => {
   }
 });
 
-app.get('/api/users', authenticate, resolveTenant, requireRole('admin', 'super_admin'), async (req, res) => {
+app.get('/api/users', authenticate, requireRole('admin'), async (_req, res) => {
   try {
-    const where = req.tenant?.isSuperAdmin && req.tenant.organizationId > 0
-      ? { organizationId: req.tenant.organizationId }
-      : req.user?.organizationId ? { organizationId: req.user.organizationId } : {};
-
     const users = await prisma.user.findMany({
-      where,
       orderBy: { id: 'asc' },
     });
 
@@ -457,7 +416,7 @@ app.post('/api/auth/refresh', async (req, res) => {
 
     const user = await prisma.user.findUnique({
       where: { id: payload.userId },
-      select: { id: true, role: true, tokenVersion: true, organizationId: true },
+      select: { id: true, role: true, tokenVersion: true },
     });
 
     if (!user || user.tokenVersion !== payload.tokenVersion) {
@@ -465,7 +424,7 @@ app.post('/api/auth/refresh', async (req, res) => {
       return;
     }
 
-    const accessToken = generateAccessToken({ userId: user.id, role: user.role, organizationId: user.organizationId });
+    const accessToken = generateAccessToken({ userId: user.id, role: user.role });
     const refreshToken = generateRefreshToken({ userId: user.id, tokenVersion: user.tokenVersion });
 
     res.json({ accessToken, refreshToken });
@@ -508,182 +467,6 @@ app.post('/api/auth/revoke-all-sessions', ...authHandlers.revokeAllSessions);
 
 app.get('/api/auth/permissions', ...authHandlers.getPermissions);
 
-app.get('/api/organizations', authenticate, async (req, res) => {
-  try {
-    if (req.user?.role !== 'super_admin') {
-      const org = await prisma.organization.findUnique({
-        where: { id: req.user!.organizationId },
-        include: { settings: true },
-      });
-      if (!org) {
-        res.status(404).json({ error: 'Organization not found' });
-        return;
-      }
-      res.json({ organization: org });
-      return;
-    }
-
-    const organizations = await prisma.organization.findMany({
-      include: { settings: true },
-      orderBy: { createdAt: 'desc' },
-    });
-    res.json({ organizations });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-app.post('/api/organizations', authenticate, async (req, res) => {
-  try {
-    if (req.user?.role !== 'super_admin') {
-      res.status(403).json({ error: 'Only super admin can create organizations' });
-      return;
-    }
-
-    const { ten, slug, domain } = req.body as { ten?: string; slug?: string; domain?: string };
-
-    if (!ten || !slug) {
-      res.status(400).json({ error: 'Name and slug are required' });
-      return;
-    }
-
-    const existing = await prisma.organization.findUnique({ where: { slug } });
-    if (existing) {
-      res.status(409).json({ error: 'Slug already exists' });
-      return;
-    }
-
-    const organization = await prisma.organization.create({
-      data: {
-        name: ten,
-        slug,
-        domain,
-      },
-      include: { settings: true },
-    });
-
-    await prisma.organizationSettings.create({
-      data: { organizationId: organization.id },
-    });
-
-    res.status(201).json({ organization });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-app.get('/api/organizations/:id', authenticate, async (req, res) => {
-  const orgId = parseId(req.params.id);
-  if (!orgId) {
-    res.status(400).json({ error: 'Invalid organization id' });
-    return;
-  }
-
-  try {
-    const organization = await prisma.organization.findUnique({
-      where: { id: orgId },
-      include: { settings: true },
-    });
-
-    if (!organization) {
-      res.status(404).json({ error: 'Organization not found' });
-      return;
-    }
-
-    res.json({ organization });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-app.patch('/api/organizations/:id', authenticate, async (req, res) => {
-  const orgId = parseId(req.params.id);
-  if (!orgId) {
-    res.status(400).json({ error: 'Invalid organization id' });
-    return;
-  }
-
-  try {
-    if (req.user?.role !== 'super_admin' && req.user?.organizationId !== orgId) {
-      res.status(403).json({ error: 'Not authorized' });
-      return;
-    }
-
-    const { ten, domain, isActive } = req.body as Record<string, unknown>;
-
-    const organization = await prisma.organization.update({
-      where: { id: orgId },
-      data: {
-        ...(typeof ten === 'string' && { name: ten }),
-        ...(typeof domain === 'string' && { domain }),
-        ...(typeof isActive === 'boolean' && { isActive }),
-      },
-      include: { settings: true },
-    });
-
-    res.json({ organization });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-app.get('/api/organizations/:id/settings', authenticate, requireTenant, async (req, res) => {
-  const orgId = parseId(req.params.id);
-  if (!orgId) {
-    res.status(400).json({ error: 'Invalid organization id' });
-    return;
-  }
-
-  try {
-    const settings = await prisma.organizationSettings.findUnique({
-      where: { organizationId: orgId },
-    });
-
-    if (!settings) {
-      res.status(404).json({ error: 'Settings not found' });
-      return;
-    }
-
-    res.json({ settings });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-app.patch('/api/organizations/:id/settings', authenticate, requireTenant, async (req, res) => {
-  const orgId = parseId(req.params.id);
-  if (!orgId) {
-    res.status(400).json({ error: 'Invalid organization id' });
-    return;
-  }
-
-  try {
-    const { platformName, logo, commissionRate, refundDays, contactEmail, theme } = req.body as Record<string, unknown>;
-
-    const settings = await prisma.organizationSettings.upsert({
-      where: { organizationId: orgId },
-      create: { organizationId: orgId },
-      update: {
-        ...(typeof platformName === 'string' && { platformName }),
-        ...(typeof logo === 'string' && { logo }),
-        ...(typeof commissionRate === 'number' && { commissionRate }),
-        ...(typeof refundDays === 'number' && { refundDays }),
-        ...(typeof contactEmail === 'string' && { contactEmail }),
-        ...(typeof theme === 'string' && { theme }),
-      },
-    });
-
-    res.json({ settings });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
 
 app.get('/api/users/:id', async (req, res) => {
   const userId = parseId(req.params.id);
@@ -756,7 +539,7 @@ app.get('/api/categories', async (_req, res) => {
   }
 });
 
-app.post('/api/categories', authenticate, resolveTenant, async (req, res) => {
+app.post('/api/categories', authenticate, async (req, res) => {
   const { ten } = req.body as { ten?: string };
   const name = ten?.trim();
 
@@ -765,15 +548,11 @@ app.post('/api/categories', authenticate, resolveTenant, async (req, res) => {
     return;
   }
 
-  const organizationId = getOrganizationId(req);
-  if (!organizationId) {
-    res.status(400).json({ error: 'Organization context required' });
-    return;
-  }
+
 
   try {
     const category = await prisma.category.create({
-      data: { name, organizationId },
+      data: { name },
     });
 
     res.status(201).json({ category: { id: category.id, ten: category.name } });
@@ -826,47 +605,95 @@ app.get('/api/courses', async (req, res) => {
     const categoryId = parseOptionalId(req.query.categoryId);
     const instructorId = parseOptionalId(req.query.instructorId);
     const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
+    const minPrice = req.query.minPrice ? Number(req.query.minPrice) : undefined;
+    const maxPrice = req.query.maxPrice ? Number(req.query.maxPrice) : undefined;
+    const level = typeof req.query.level === 'string' ? req.query.level : undefined;
+    const sortBy = typeof req.query.sortBy === 'string' ? req.query.sortBy : undefined;
+    const page = req.query.page ? Number(req.query.page) : 1;
+    const limit = req.query.limit ? Number(req.query.limit) : 12;
 
-    const courses = await prisma.course.findMany({
-      where: {
-        status: 'approved',
-        ...(categoryId ? { categoryId } : {}),
-        ...(instructorId ? { instructorId } : {}),
-        ...(search
-          ? {
-              OR: [
-                { title: { contains: search, mode: 'insensitive' } },
-                { description: { contains: search, mode: 'insensitive' } },
-              ],
-            }
-          : {}),
-      },
-      include: {
-        instructor: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            avatarUrl: true,
+    const userId = req.headers['x-user-id'] ? Number(req.headers['x-user-id']) : undefined;
+
+    const where: any = {
+      status: 'completed',
+      ...(categoryId ? { categoryId } : {}),
+      ...(instructorId ? { instructorId } : {}),
+      ...(search
+        ? {
+            OR: [
+              { title: { contains: search, mode: 'insensitive' } },
+              { description: { contains: search, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+      ...(minPrice ? { price: { gte: minPrice } } : {}),
+      ...(maxPrice ? { price: { lte: maxPrice } } : {}),
+      ...(level ? { level } : {}),
+    };
+
+    let enrolledCourseIds: number[] = [];
+    if (userId) {
+      const enrollments = await prisma.enrollment.findMany({
+        where: { userId },
+        select: { courseId: true },
+      });
+      enrolledCourseIds = enrollments.map(e => e.courseId);
+    }
+
+    if (enrolledCourseIds.length > 0) {
+      where.id = { notIn: enrolledCourseIds };
+    }
+
+    let orderBy: any = { id: 'desc' };
+    if (sortBy === 'popular') {
+      orderBy = { enrolledCount: 'desc' };
+    } else if (sortBy === 'price-asc') {
+      orderBy = { price: 'asc' };
+    } else if (sortBy === 'price-desc') {
+      orderBy = { price: 'desc' };
+    } else if (sortBy === 'newest') {
+      orderBy = { createdAt: 'desc' };
+    }
+
+    const skip = (page - 1) * limit;
+    const [courses, total] = await Promise.all([
+      prisma.course.findMany({
+        where,
+        include: {
+          instructor: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              avatarUrl: true,
+            },
+          },
+          category: {
+            select: {
+              id: true,
+              name: true,
+            },
           },
         },
-        category: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-      },
-      orderBy: { id: 'asc' },
+        orderBy,
+        skip,
+        take: limit,
+      }),
+      prisma.course.count({ where }),
+    ]);
+
+    res.json({
+      courses: courses.map(serializeCourse),
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
     });
-
-    res.json({ courses: courses.map(serializeCourse) });
   } catch (error) {
     handleError(res, error);
   }
 });
 
-app.get('/api/teacher/courses', authenticate, resolveTenant, async (req, res) => {
+app.get('/api/teacher/courses', authenticate, async (req, res) => {
   try {
     const statusParam = typeof req.query.status === 'string' ? req.query.status : undefined;
     const status = courseStatuses.find((value) => value === statusParam);
@@ -874,7 +701,6 @@ app.get('/api/teacher/courses', authenticate, resolveTenant, async (req, res) =>
     const courses = await prisma.course.findMany({
       where: {
         instructorId: req.user!.userId,
-        organizationId: req.tenant?.organizationId || req.user!.organizationId,
         ...(status ? { status } : {}),
       },
       include: {
@@ -901,7 +727,7 @@ app.get('/api/teacher/courses', authenticate, resolveTenant, async (req, res) =>
   }
 });
 
-app.get('/api/teacher/courses/:id', authenticate, resolveTenant, async (req, res) => {
+app.get('/api/teacher/courses/:id', authenticate, async (req, res) => {
   const courseId = parseId(req.params.id);
   if (!courseId) {
     res.status(400).json({ error: 'Invalid course id' });
@@ -1087,7 +913,7 @@ app.get('/api/lessons/:id/comments', async (req, res) => {
   }
 });
 
-app.post('/api/lessons/:id/comments', authenticate, resolveTenant, async (req, res) => {
+app.post('/api/lessons/:id/comments', authenticate, async (req, res) => {
   const lessonId = parseId(req.params.id);
   const { nguoi_dung_id, noi_dung, parent_id } = req.body as {
     nguoi_dung_id?: number;
@@ -1098,15 +924,9 @@ app.post('/api/lessons/:id/comments', authenticate, resolveTenant, async (req, r
   const userId = Number(nguoi_dung_id);
   const content = noi_dung?.trim();
   const parentId = parent_id == null ? null : Number(parent_id);
-  const organizationId = getOrganizationId(req);
 
   if (!lessonId || !Number.isInteger(userId) || !content) {
     res.status(400).json({ error: 'Invalid comment payload' });
-    return;
-  }
-
-  if (!organizationId) {
-    res.status(400).json({ error: 'Organization context required' });
     return;
   }
 
@@ -1118,7 +938,7 @@ app.post('/api/lessons/:id/comments', authenticate, resolveTenant, async (req, r
         content,
         parentId: Number.isInteger(parentId) ? parentId : null,
         createdAt: new Date(),
-        organizationId,
+        
       },
       include: {
         user: {
@@ -1154,15 +974,13 @@ app.delete('/api/comments/:id', async (req, res) => {
   }
 });
 
-app.post('/api/courses', authenticate, resolveTenant, async (req, res) => {
+app.post('/api/courses', authenticate, async (req, res) => {
   const {
     tieu_de,
     danh_muc_id,
     gia,
-    so_luong_toi_da,
     trang_thai,
     mo_ta,
-    thumbnail,
     hinh_anh,
     muc_do,
     thoi_luong,
@@ -1174,17 +992,10 @@ app.post('/api/courses', authenticate, resolveTenant, async (req, res) => {
   const instructorId = req.user!.userId;
   const categoryId = Number(danh_muc_id);
   const price = Number(gia);
-  const maxStudents = so_luong_toi_da == null || so_luong_toi_da === '' ? null : Number(so_luong_toi_da);
   const status = courseStatuses.find((value) => value === trang_thai) ?? 'draft';
-  const organizationId = getOrganizationId(req);
 
   if (!title || !Number.isInteger(categoryId) || Number.isNaN(price)) {
     res.status(400).json({ error: 'Invalid course payload' });
-    return;
-  }
-
-  if (!organizationId) {
-    res.status(400).json({ error: 'Organization context required' });
     return;
   }
 
@@ -1195,17 +1006,15 @@ app.post('/api/courses', authenticate, resolveTenant, async (req, res) => {
         instructorId,
         categoryId,
         price,
-        maxStudents: typeof maxStudents === 'number' && !Number.isNaN(maxStudents) ? maxStudents : null,
         enrolledCount: 0,
         status,
         description: typeof mo_ta === 'string' ? mo_ta : null,
-        thumbnailUrl: typeof thumbnail === 'string' ? thumbnail : null,
         imageUrl: typeof hinh_anh === 'string' ? hinh_anh : null,
         level: typeof muc_do === 'string' ? muc_do : null,
         duration: typeof thoi_luong === 'string' ? thoi_luong : null,
         requirements: Array.isArray(requirements) ? requirements : undefined,
         learningOutcomes: Array.isArray(whatYouLearn) ? whatYouLearn : undefined,
-        organizationId,
+        
       },
       include: {
         instructor: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
@@ -1233,10 +1042,8 @@ app.patch('/api/courses/:id', async (req, res) => {
     giang_vien_id,
     danh_muc_id,
     gia,
-    so_luong_toi_da,
     trang_thai,
     mo_ta,
-    thumbnail,
     hinh_anh,
     muc_do,
     thoi_luong,
@@ -1252,15 +1059,8 @@ app.patch('/api/courses/:id', async (req, res) => {
         instructorId: Number.isInteger(giang_vien_id) ? Number(giang_vien_id) : undefined,
         categoryId: Number.isInteger(danh_muc_id) ? Number(danh_muc_id) : undefined,
         price: typeof gia === 'number' ? gia : undefined,
-        maxStudents:
-          so_luong_toi_da == null || so_luong_toi_da === ''
-            ? undefined
-            : typeof so_luong_toi_da === 'number'
-              ? so_luong_toi_da
-              : undefined,
         status: courseStatuses.find((value) => value === trang_thai) ?? undefined,
         description: typeof mo_ta === 'string' ? mo_ta : undefined,
-        thumbnailUrl: typeof thumbnail === 'string' ? thumbnail : undefined,
         imageUrl: typeof hinh_anh === 'string' ? hinh_anh : undefined,
         level: typeof muc_do === 'string' ? muc_do : undefined,
         duration: typeof thoi_luong === 'string' ? thoi_luong : undefined,
@@ -1295,18 +1095,12 @@ app.delete('/api/courses/:id', async (req, res) => {
   }
 });
 
-app.patch('/api/courses/:id/chapters/reorder', authenticate, resolveTenant, async (req, res) => {
+app.patch('/api/courses/:id/chapters/reorder', authenticate, async (req, res) => {
   const courseId = parseId(req.params.id);
   const { chapterIds } = req.body as { chapterIds?: number[] };
-  const organizationId = getOrganizationId(req);
 
   if (!courseId || !Array.isArray(chapterIds)) {
     res.status(400).json({ error: 'Invalid reorder payload' });
-    return;
-  }
-
-  if (!organizationId) {
-    res.status(400).json({ error: 'Organization context required' });
     return;
   }
 
@@ -1336,20 +1130,15 @@ app.patch('/api/courses/:id/chapters/reorder', authenticate, resolveTenant, asyn
   }
 });
 
-app.post('/api/courses/:id/chapters', authenticate, resolveTenant, async (req, res) => {
+app.post('/api/courses/:id/chapters', authenticate, async (req, res) => {
   const courseId = parseId(req.params.id);
   const { tieu_de, thu_tu } = req.body as { tieu_de?: string; thu_tu?: number };
-  const organizationId = getOrganizationId(req);
 
   if (!courseId || !tieu_de?.trim()) {
     res.status(400).json({ error: 'Invalid chapter payload' });
     return;
   }
 
-  if (!organizationId) {
-    res.status(400).json({ error: 'Organization context required' });
-    return;
-  }
 
   try {
     const chapter = await prisma.chapter.create({
@@ -1357,7 +1146,7 @@ app.post('/api/courses/:id/chapters', authenticate, resolveTenant, async (req, r
         courseId,
         title: tieu_de.trim(),
         order: typeof thu_tu === 'number' && Number.isInteger(thu_tu) ? thu_tu : 1,
-        organizationId,
+        
       },
     });
 
@@ -1375,24 +1164,19 @@ app.post('/api/courses/:id/chapters', authenticate, resolveTenant, async (req, r
   }
 });
 
-app.patch('/api/chapters/:id', authenticate, resolveTenant, async (req, res) => {
+app.patch('/api/chapters/:id', authenticate, async (req, res) => {
   const chapterId = parseId(req.params.id);
   const { tieu_de, thu_tu } = req.body as { tieu_de?: string; thu_tu?: number };
-  const organizationId = getOrganizationId(req);
 
   if (!chapterId) {
     res.status(400).json({ error: 'Invalid chapter id' });
     return;
   }
 
-  if (!organizationId) {
-    res.status(400).json({ error: 'Organization context required' });
-    return;
-  }
 
   try {
     const chapter = await prisma.chapter.findFirst({
-      where: { id: chapterId, organizationId },
+      where: { id: chapterId },
       include: { course: { select: { instructorId: true } } },
     });
 
@@ -1427,23 +1211,18 @@ app.patch('/api/chapters/:id', authenticate, resolveTenant, async (req, res) => 
   }
 });
 
-app.delete('/api/chapters/:id', authenticate, resolveTenant, async (req, res) => {
+app.delete('/api/chapters/:id', authenticate, async (req, res) => {
   const chapterId = parseId(req.params.id);
-  const organizationId = getOrganizationId(req);
 
   if (!chapterId) {
     res.status(400).json({ error: 'Invalid chapter id' });
     return;
   }
 
-  if (!organizationId) {
-    res.status(400).json({ error: 'Organization context required' });
-    return;
-  }
 
   try {
     const chapter = await prisma.chapter.findFirst({
-      where: { id: chapterId, organizationId },
+      where: { id: chapterId },
       include: { course: { select: { instructorId: true } } },
     });
 
@@ -1464,22 +1243,17 @@ app.delete('/api/chapters/:id', authenticate, resolveTenant, async (req, res) =>
   }
 });
 
-app.post('/api/chapters/:id/lessons', authenticate, resolveTenant, async (req, res) => {
+app.post('/api/chapters/:id/lessons', authenticate, async (req, res) => {
   const chapterId = parseId(req.params.id);
   const { tieu_de, video_url, loai, thoi_luong, noi_dung } = req.body as Record<string, unknown>;
   const title = typeof tieu_de === 'string' ? tieu_de.trim() : '';
   const type = lessonTypes.find((value) => value === loai) ?? 'video';
-  const organizationId = getOrganizationId(req);
 
   if (!chapterId || !title) {
     res.status(400).json({ error: 'Invalid lesson payload' });
     return;
   }
 
-  if (!organizationId) {
-    res.status(400).json({ error: 'Organization context required' });
-    return;
-  }
 
   try {
     const existingCount = await prisma.lesson.count({ where: { chapterId } });
@@ -1492,7 +1266,7 @@ app.post('/api/chapters/:id/lessons', authenticate, resolveTenant, async (req, r
         type,
         duration: typeof thoi_luong === 'string' ? thoi_luong : null,
         content: typeof noi_dung === 'string' ? noi_dung : null,
-        organizationId,
+        
       },
     });
 
@@ -1514,24 +1288,19 @@ app.post('/api/chapters/:id/lessons', authenticate, resolveTenant, async (req, r
   }
 });
 
-app.patch('/api/lessons/:id', authenticate, resolveTenant, async (req, res) => {
+app.patch('/api/lessons/:id', authenticate, async (req, res) => {
   const lessonId = parseId(req.params.id);
   const { tieu_de, video_url, loai, thoi_luong, noi_dung } = req.body as Record<string, unknown>;
-  const organizationId = getOrganizationId(req);
 
   if (!lessonId) {
     res.status(400).json({ error: 'Invalid lesson id' });
     return;
   }
 
-  if (!organizationId) {
-    res.status(400).json({ error: 'Organization context required' });
-    return;
-  }
 
   try {
     const lesson = await prisma.lesson.findFirst({
-      where: { id: lessonId, organizationId },
+      where: { id: lessonId },
       include: { chapter: { include: { course: { select: { instructorId: true } } } } },
     });
 
@@ -1574,23 +1343,18 @@ app.patch('/api/lessons/:id', authenticate, resolveTenant, async (req, res) => {
   }
 });
 
-app.delete('/api/lessons/:id', authenticate, resolveTenant, async (req, res) => {
+app.delete('/api/lessons/:id', authenticate, async (req, res) => {
   const lessonId = parseId(req.params.id);
-  const organizationId = getOrganizationId(req);
 
   if (!lessonId) {
     res.status(400).json({ error: 'Invalid lesson id' });
     return;
   }
 
-  if (!organizationId) {
-    res.status(400).json({ error: 'Organization context required' });
-    return;
-  }
 
   try {
     const lesson = await prisma.lesson.findFirst({
-      where: { id: lessonId, organizationId },
+      where: { id: lessonId },
       include: { chapter: { include: { course: { select: { instructorId: true } } } } },
     });
 
@@ -1611,24 +1375,19 @@ app.delete('/api/lessons/:id', authenticate, resolveTenant, async (req, res) => 
   }
 });
 
-app.patch('/api/chapters/:id/lessons/reorder', authenticate, resolveTenant, async (req, res) => {
+app.patch('/api/chapters/:id/lessons/reorder', authenticate, async (req, res) => {
   const chapterId = parseId(req.params.id);
   const { lessonIds } = req.body as { lessonIds?: number[] };
-  const organizationId = getOrganizationId(req);
 
   if (!chapterId || !Array.isArray(lessonIds)) {
     res.status(400).json({ error: 'Invalid reorder payload' });
     return;
   }
 
-  if (!organizationId) {
-    res.status(400).json({ error: 'Organization context required' });
-    return;
-  }
 
   try {
     const chapter = await prisma.chapter.findFirst({
-      where: { id: chapterId, organizationId },
+      where: { id: chapterId },
       include: { course: { select: { instructorId: true } } },
     });
 
@@ -1783,7 +1542,7 @@ app.get('/api/users/:userId/progress', async (req, res) => {
   }
 });
 
-app.patch('/api/progress', authenticate, resolveTenant, async (req, res) => {
+app.patch('/api/progress', authenticate, async (req, res) => {
   const { bai_hoc_id, da_hoan_thanh } = req.body as {
     bai_hoc_id?: number;
     da_hoan_thanh?: boolean;
@@ -1791,17 +1550,12 @@ app.patch('/api/progress', authenticate, resolveTenant, async (req, res) => {
 
   const userId = req.user!.userId;
   const lessonId = Number(bai_hoc_id);
-  const organizationId = getOrganizationId(req);
 
   if (!Number.isInteger(userId) || !Number.isInteger(lessonId) || typeof da_hoan_thanh !== 'boolean') {
     res.status(400).json({ error: 'Invalid progress payload' });
     return;
   }
 
-  if (!organizationId) {
-    res.status(400).json({ error: 'Organization context required' });
-    return;
-  }
 
   try {
     const progress = await prisma.progress.upsert({
@@ -1820,13 +1574,13 @@ app.patch('/api/progress', authenticate, resolveTenant, async (req, res) => {
         lessonId,
         completed: da_hoan_thanh,
         completedAt: da_hoan_thanh ? new Date() : null,
-        organizationId,
+        
       },
     });
 
     if (da_hoan_thanh) {
       const lesson = await prisma.lesson.findFirst({
-        where: { id: lessonId, organizationId },
+        where: { id: lessonId },
         include: {
           chapter: {
             include: {
@@ -1846,7 +1600,7 @@ app.patch('/api/progress', authenticate, resolveTenant, async (req, res) => {
         );
 
         const completedCount = await prisma.progress.count({
-          where: { userId, completed: true, organizationId },
+          where: { userId, completed: true },
         });
 
         if (completedCount >= totalLessons && totalLessons > 0) {
@@ -1876,21 +1630,16 @@ app.patch('/api/progress', authenticate, resolveTenant, async (req, res) => {
   }
 });
 
-app.post('/api/enrollments', authenticate, resolveTenant, async (req, res) => {
+app.post('/api/enrollments', authenticate, async (req, res) => {
   const { khoa_hoc_id } = req.body as { khoa_hoc_id?: number };
   const userId = req.user!.userId;
   const courseId = Number(khoa_hoc_id);
-  const organizationId = getOrganizationId(req);
 
   if (!Number.isInteger(userId) || !Number.isInteger(courseId)) {
     res.status(400).json({ error: 'Invalid enrollment payload' });
     return;
   }
 
-  if (!organizationId) {
-    res.status(400).json({ error: 'Organization context required' });
-    return;
-  }
 
   try {
     const existingEnrollment = await prisma.enrollment.findUnique({
@@ -1914,7 +1663,7 @@ app.post('/api/enrollments', authenticate, resolveTenant, async (req, res) => {
         userId,
         courseId,
         enrolledAt: new Date(),
-        organizationId,
+        
       },
     });
 
@@ -1935,6 +1684,238 @@ app.post('/api/enrollments', authenticate, resolveTenant, async (req, res) => {
         ngay_dang_ky: enrollment.enrolledAt.toISOString(),
       },
     });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+// Phase 1.1: Mount course routes for reviews
+import courseRoutes from './routes/course.routes.js';
+app.use('/api/courses', courseRoutes);
+
+// Mount quiz routes (prerequisite logic in quiz.routes.ts uses the router)
+import quizRoutes from './routes/quiz.routes.js';
+app.use('/api/quizzes', quizRoutes);
+
+// Phase 1.2: GET /api/enrollments/check/:courseId
+app.get('/api/enrollments/check/:courseId', authenticate, async (req, res) => {
+  const courseId = parseId(req.params.courseId);
+  const userId = req.user!.userId;
+
+  if (!courseId) {
+    res.status(400).json({ error: 'Invalid course id' });
+    return;
+  }
+
+  try {
+    const enrollment = await prisma.enrollment.findUnique({
+      where: { userId_courseId: { userId, courseId } },
+    });
+
+    if (enrollment) {
+      res.json({
+        enrolled: true,
+        enrollmentId: enrollment.id,
+        ngay_dang_ky: enrollment.enrolledAt.toISOString(),
+      });
+    } else {
+      res.json({ enrolled: false });
+    }
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+// Phase 1.4: GET /api/my-enrollments
+app.get('/api/my-enrollments', authenticate, async (req, res) => {
+  const userId = req.user!.userId;
+
+  try {
+    const enrollments = await prisma.enrollment.findMany({
+      where: { userId },
+      include: {
+        course: {
+          include: {
+            instructor: {
+              select: { id: true, firstName: true, lastName: true, avatarUrl: true },
+            },
+            category: {
+              select: { id: true, name: true },
+            },
+            chapters: {
+              include: {
+                lessons: {
+                  select: { id: true },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { enrolledAt: 'desc' },
+    });
+
+    const progressRows = await prisma.progress.findMany({
+      where: { userId, completed: true },
+      select: { lessonId: true },
+    });
+    const completedLessonIds = new Set(progressRows.map(item => item.lessonId));
+
+    res.json({
+      enrollments: enrollments.map((enrollment) => {
+        const lessonIds = enrollment.course.chapters.flatMap(chapter => chapter.lessons.map(lesson => lesson.id));
+        const totalLessons = lessonIds.length;
+        const completedLessons = lessonIds.filter(lessonId => completedLessonIds.has(lessonId)).length;
+        const progress = totalLessons === 0 ? 0 : Math.round((completedLessons / totalLessons) * 100);
+
+        let trang_thai: "completed" | "in_progress" | "not_started" = "not_started";
+        if (progress === 100) trang_thai = "completed";
+        else if (progress > 0) trang_thai = "in_progress";
+
+        return {
+          id: enrollment.id,
+          khoa_hoc_id: enrollment.courseId,
+          tien_do: progress,
+          trang_thai,
+          ngay_dang_ky: enrollment.enrolledAt.toISOString(),
+          ngay_hoan_thanh: progress === 100 ? new Date().toISOString() : null,
+          bai_hoc_hien_tai: null,
+          khoa_hoc: {
+            id: enrollment.course.id,
+            tieu_de: enrollment.course.title,
+            mo_ta: enrollment.course.description || "",
+            thumbnail: enrollment.course.imageUrl,
+            gia: enrollment.course.price,
+            muc_do: enrollment.course.level,
+            trang_thai: enrollment.course.status,
+            giang_vien: {
+              id: enrollment.course.instructor.id,
+              ho: enrollment.course.instructor.lastName || "",
+              ten: enrollment.course.instructor.firstName || "",
+              anh_dai_dien: enrollment.course.instructor.avatarUrl,
+            },
+          },
+        };
+      }),
+    });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+// Phase 1.3: POST /api/cart (with duplicate check)
+app.post('/api/cart', authenticate, async (req, res) => {
+  const { khoa_hoc_id } = req.body as { khoa_hoc_id?: number };
+  const userId = req.user!.userId;
+  const courseId = Number(khoa_hoc_id);
+
+  if (!Number.isInteger(userId) || !Number.isInteger(courseId)) {
+    res.status(400).json({ error: 'Invalid cart payload' });
+    return;
+  }
+
+  try {
+    // Check if user already enrolled in this course
+    const existingEnrollment = await prisma.enrollment.findUnique({
+      where: { userId_courseId: { userId, courseId } },
+    });
+
+    if (existingEnrollment) {
+      res.status(400).json({ error: 'Bạn đã đăng ký khóa học này rồi' });
+      return;
+    }
+
+    // Check if already in cart
+    const existingCartItem = await prisma.cart.findUnique({
+      where: { userId_courseId: { userId, courseId } },
+    });
+
+    if (existingCartItem) {
+      res.status(400).json({ error: 'Khóa học đã có trong giỏ hàng' });
+      return;
+    }
+
+    // Check if course exists and is available
+    const course = await prisma.course.findUnique({
+      where: { id: courseId },
+      select: { id: true, title: true, status: true },
+    });
+
+    if (!course) {
+      res.status(404).json({ error: 'Khóa học không tồn tại' });
+      return;
+    }
+
+    if (course.status !== 'completed') {
+      res.status(400).json({ error: 'Khóa học không khả dụng' });
+      return;
+    }
+
+    const cartItem = await prisma.cart.create({
+      data: {
+        userId,
+        courseId,
+        createdAt: new Date(),
+      },
+      include: {
+        course: {
+          include: {
+            instructor: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
+            category: { select: { id: true, name: true } },
+          },
+        },
+      },
+    });
+
+    res.status(201).json({
+      item: {
+        id: cartItem.id,
+        khoa_hoc_id: cartItem.courseId,
+        gia: cartItem.course.price,
+        khoa_hoc: {
+          id: cartItem.course.id,
+          tieu_de: cartItem.course.title,
+          hinh_anh: cartItem.course.imageUrl,
+          giang_vien: cartItem.course.instructor,
+          danh_muc: cartItem.course.category,
+        },
+        ngay_them: cartItem.createdAt.toISOString(),
+      },
+    });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+// DELETE /api/cart/:courseId (remove from cart)
+app.delete('/api/cart/:courseId', authenticate, async (req, res) => {
+  const courseId = parseId(req.params.courseId);
+  const userId = req.user!.userId;
+
+  if (!courseId) {
+    res.status(400).json({ error: 'Invalid course id' });
+    return;
+  }
+
+  try {
+    await prisma.cart.deleteMany({
+      where: { userId, courseId },
+    });
+    res.status(204).send();
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+// DELETE /api/cart (clear entire cart)
+app.delete('/api/cart', authenticate, async (req, res) => {
+  const userId = req.user!.userId;
+
+  try {
+    await prisma.cart.deleteMany({
+      where: { userId },
+    });
+    res.status(204).send();
   } catch (error) {
     handleError(res, error);
   }
@@ -2006,23 +1987,18 @@ app.get('/api/forum/topics', async (req, res) => {
   }
 });
 
-app.post('/api/forum/topics', authenticate, resolveTenant, async (req, res) => {
+app.post('/api/forum/topics', authenticate, async (req, res) => {
   const { nguoi_dung_id, tieu_de, noi_dung, khoa_hoc_id } = req.body as Record<string, unknown>;
   const userId = Number(nguoi_dung_id);
   const title = typeof tieu_de === 'string' ? tieu_de.trim() : '';
   const content = typeof noi_dung === 'string' ? noi_dung.trim() : '';
   const courseId = khoa_hoc_id == null || khoa_hoc_id === '' ? null : Number(khoa_hoc_id);
-  const organizationId = getOrganizationId(req);
 
   if (!Number.isInteger(userId) || !title || !content) {
     res.status(400).json({ error: 'Invalid forum topic payload' });
     return;
   }
 
-  if (!organizationId) {
-    res.status(400).json({ error: 'Organization context required' });
-    return;
-  }
 
   try {
     const topic = await prisma.forumTopic.create({
@@ -2035,7 +2011,7 @@ app.post('/api/forum/topics', authenticate, resolveTenant, async (req, res) => {
         replyCount: 0,
         createdAt: new Date(),
         updatedAt: new Date(),
-        organizationId,
+        
       },
       include: {
         user: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
@@ -2121,22 +2097,17 @@ app.get('/api/forum/topics/:id', async (req, res) => {
   }
 });
 
-app.post('/api/forum/topics/:id/replies', authenticate, resolveTenant, async (req, res) => {
+app.post('/api/forum/topics/:id/replies', authenticate, async (req, res) => {
   const topicId = parseId(req.params.id);
   const { nguoi_dung_id, noi_dung } = req.body as Record<string, unknown>;
   const userId = Number(nguoi_dung_id);
   const content = typeof noi_dung === 'string' ? noi_dung.trim() : '';
-  const organizationId = getOrganizationId(req);
 
   if (!topicId || !Number.isInteger(userId) || !content) {
     res.status(400).json({ error: 'Invalid forum reply payload' });
     return;
   }
 
-  if (!organizationId) {
-    res.status(400).json({ error: 'Organization context required' });
-    return;
-  }
 
   try {
     const reply = await prisma.forumReply.create({
@@ -2145,7 +2116,7 @@ app.post('/api/forum/topics/:id/replies', authenticate, resolveTenant, async (re
         userId,
         content,
         createdAt: new Date(),
-        organizationId,
+        
       },
       include: {
         user: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
@@ -2322,7 +2293,7 @@ app.get('/api/quizzes/:id', async (req, res) => {
   }
 });
 
-app.post('/api/quizzes/:id/attempts', authenticate, resolveTenant, async (req, res) => {
+app.post('/api/quizzes/:id/attempts', authenticate, async (req, res) => {
   const quizId = parseId(req.params.id);
   const { nguoi_dung_id, answers } = req.body as {
     nguoi_dung_id?: number;
@@ -2330,19 +2301,53 @@ app.post('/api/quizzes/:id/attempts', authenticate, resolveTenant, async (req, r
   };
 
   const userId = Number(nguoi_dung_id);
-  const organizationId = getOrganizationId(req);
 
   if (!quizId || !Number.isInteger(userId) || !Array.isArray(answers)) {
     res.status(400).json({ error: 'Invalid quiz attempt payload' });
     return;
   }
 
-  if (!organizationId) {
-    res.status(400).json({ error: 'Organization context required' });
-    return;
-  }
-
   try {
+    const quiz = await prisma.quiz.findUnique({
+      where: { id: quizId },
+      include: {
+        lesson: {
+          include: {
+            chapter: {
+              include: {
+                lessons: { orderBy: { id: 'asc' }, select: { id: true } },
+                course: { select: { id: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!quiz) {
+      res.status(404).json({ error: 'Quiz not found' });
+      return;
+    }
+
+    // Phase 3: Quiz prerequisite - check previous lesson completed
+    const lessonsInChapter = quiz.lesson.chapter.lessons;
+    const currentLessonIndex = lessonsInChapter.findIndex(l => l.id === quiz.lessonId);
+
+    if (currentLessonIndex > 0) {
+      const previousLessonId = lessonsInChapter[currentLessonIndex - 1].id;
+      const previousProgress = await prisma.progress.findUnique({
+        where: { userId_lessonId: { userId, lessonId: previousLessonId } },
+      });
+
+      if (!previousProgress?.completed) {
+        res.status(403).json({
+          error: 'Bạn cần hoàn thành bài học trước để làm bài kiểm tra này',
+          prerequisite: { lessonId: previousLessonId, message: 'Hoàn thành bài học liền trước' },
+        });
+        return;
+      }
+    }
+
     const questions = await prisma.quizQuestion.findMany({
       where: { quizId },
       select: { id: true, correctAnswer: true },
@@ -2363,7 +2368,6 @@ app.post('/api/quizzes/:id/attempts', authenticate, resolveTenant, async (req, r
         userId,
         score,
         takenAt: new Date(),
-        organizationId,
       },
     });
 
@@ -2460,7 +2464,7 @@ app.get('/api/assignments', async (req, res) => {
   }
 });
 
-app.post('/api/assignments/:id/submissions', authenticate, resolveTenant, async (req, res) => {
+app.post('/api/assignments/:id/submissions', authenticate, async (req, res) => {
   const assignmentId = parseId(req.params.id);
   const { nguoi_dung_id, noi_dung, file_dinh_kem } = req.body as {
     nguoi_dung_id?: number;
@@ -2470,17 +2474,12 @@ app.post('/api/assignments/:id/submissions', authenticate, resolveTenant, async 
 
   const userId = Number(nguoi_dung_id);
   const content = noi_dung?.trim();
-  const organizationId = getOrganizationId(req);
 
   if (!assignmentId || !Number.isInteger(userId) || !content) {
     res.status(400).json({ error: 'Invalid assignment submission payload' });
     return;
   }
 
-  if (!organizationId) {
-    res.status(400).json({ error: 'Organization context required' });
-    return;
-  }
 
   try {
     const submission = await prisma.assignmentSubmission.upsert({
@@ -2501,7 +2500,7 @@ app.post('/api/assignments/:id/submissions', authenticate, resolveTenant, async 
         content,
         attachmentUrl: typeof file_dinh_kem === 'string' ? file_dinh_kem : null,
         submittedAt: new Date(),
-        organizationId,
+        
       },
     });
 
@@ -2515,6 +2514,79 @@ app.post('/api/assignments/:id/submissions', authenticate, resolveTenant, async 
         diem: submission.score,
         nhan_xet: submission.feedback,
         ngay_nop: submission.submittedAt.toISOString(),
+      },
+    });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.post('/api/checkout', authenticate, async (req, res) => {
+  const userId = req.user!.userId;
+
+  try {
+    const cartItems = await prisma.cart.findMany({
+      where: { userId },
+      include: { course: true },
+    });
+
+    if (cartItems.length === 0) {
+      res.status(400).json({ error: 'Giỏ hàng trống' });
+      return;
+    }
+
+    const totalAmount = cartItems.reduce((sum, item) => sum + item.course.price, 0);
+
+    const order = await prisma.order.create({
+      data: {
+        userId,
+        totalAmount,
+        status: 'success',
+        orderedAt: new Date(),
+        items: {
+          create: cartItems.map((item) => ({
+            courseId: item.courseId,
+            price: item.course.price,
+          })),
+        },
+      },
+    });
+
+    const orderWithItems = await prisma.order.findUnique({
+      where: { id: order.id },
+      include: {
+        items: { include: { course: { select: { id: true, title: true, imageUrl: true } } } },
+      },
+    });
+
+    for (const item of cartItems) {
+      await prisma.enrollment.upsert({
+        where: { userId_courseId: { userId, courseId: item.courseId } },
+        update: {},
+        create: { userId, courseId: item.courseId, enrolledAt: new Date() },
+      });
+
+      await prisma.course.update({
+        where: { id: item.courseId },
+        data: { enrolledCount: { increment: 1 } },
+      });
+    }
+
+    await prisma.cart.deleteMany({ where: { userId } });
+
+    res.status(201).json({
+      order: {
+        id: orderWithItems!.id,
+        nguoi_dung_id: orderWithItems!.userId,
+        tong_tien: orderWithItems!.totalAmount,
+        trang_thai: orderWithItems!.status,
+        ngay_dat: orderWithItems!.orderedAt.toISOString(),
+        items: orderWithItems!.items.map((item: any) => ({
+          id: item.id,
+          khoa_hoc_id: item.courseId,
+          khoa_hoc: { id: item.course.id, tieu_de: item.course.title, hinh_anh: item.course.imageUrl },
+          gia: item.price,
+        })),
       },
     });
   } catch (error) {
@@ -2604,19 +2676,12 @@ app.patch('/api/notifications/users/:userId/read-all', async (req, res) => {
   }
 });
 
-app.get('/api/cart', authenticate, resolveTenant, async (req, res) => {
-  const organizationId = getOrganizationId(req) as number;
-
-  if (!organizationId) {
-    res.status(400).json({ error: 'Organization context required' });
-    return;
-  }
-
+app.get('/api/cart', authenticate, async (req, res) => {
   try {
     const cartItems = await prisma.cart.findMany({
       where: {
         userId: req.user!.userId,
-        organizationId,
+        
       },
       include: {
         course: {
@@ -2656,19 +2721,18 @@ app.get('/api/cart', authenticate, resolveTenant, async (req, res) => {
   }
 });
 
-app.get('/api/orders', authenticate, resolveTenant, async (req, res) => {
+app.get('/api/orders', authenticate, async (req, res) => {
   const userIdParam = parseOptionalId(req.query.userId);
   const startDate = typeof req.query.startDate === 'string' ? req.query.startDate : undefined;
   const endDate = typeof req.query.endDate === 'string' ? req.query.endDate : undefined;
-  const organizationId = getOrganizationId(req) as number;
-  const isAdmin = req.user!.role === 'admin' || req.user!.role === 'super_admin';
+  const isAdmin = req.user!.role === 'admin';
 
   const targetUserId: number | undefined = isAdmin ? (userIdParam ?? undefined) : req.user!.userId;
 
   try {
     const orders = await prisma.order.findMany({
       where: {
-        organizationId,
+        
         ...(targetUserId ? { userId: targetUserId } : {}),
         ...(startDate || endDate
           ? {
@@ -2736,20 +2800,14 @@ app.get('/api/orders', authenticate, resolveTenant, async (req, res) => {
   }
 });
 
-app.get('/api/admin/overview', authenticate, resolveTenant, async (req, res) => {
-  const organizationId = getOrganizationId(req);
-
-  if (!organizationId) {
-    res.status(400).json({ error: 'Organization context required' });
-    return;
-  }
+app.get('/api/admin/overview', authenticate, async (_req, res) => {
 
   try {
     const [usersCount, coursesCount, orders, pendingCoursesCount] = await Promise.all([
-      prisma.user.count({ where: { organizationId } }),
-      prisma.course.count({ where: { organizationId } }),
-      prisma.order.findMany({ where: { organizationId }, select: { totalAmount: true, status: true } }),
-      prisma.course.count({ where: { status: 'pending', organizationId } }),
+      prisma.user.count({ where: {} }),
+      prisma.course.count({ where: {} }),
+      prisma.order.findMany({ where: {}, select: { totalAmount: true, status: true } }),
+      prisma.course.count({ where: { status: 'pending' } }),
     ]);
 
     const revenue = orders.filter((order) => order.status === 'success').reduce((sum, order) => sum + order.totalAmount, 0);
@@ -2767,7 +2825,7 @@ app.get('/api/admin/overview', authenticate, resolveTenant, async (req, res) => 
   }
 });
 
-app.patch('/api/courses/:id/status', authenticate, resolveTenant, async (req, res) => {
+app.patch('/api/courses/:id/status', authenticate, async (req, res) => {
   const courseId = parseId(req.params.id);
   const { trang_thai, ly_do } = req.body as { trang_thai?: string; ly_do?: string };
   const status = courseStatuses.find((value) => value === trang_thai);
@@ -2788,7 +2846,7 @@ app.patch('/api/courses/:id/status', authenticate, resolveTenant, async (req, re
     }
 
     const isOwner = course.instructorId === req.user!.userId;
-    const isAdmin = req.user!.role === 'admin' || req.user!.role === 'super_admin';
+    const isAdmin = req.user!.role === 'admin';
 
     if (status === 'pending' && !isOwner) {
       res.status(403).json({ error: 'Only course owner can submit for approval' });
@@ -2817,7 +2875,6 @@ app.patch('/api/courses/:id/status', authenticate, resolveTenant, async (req, re
           title,
           content: status === 'rejected' && ly_do ? `Lý do: ${ly_do}` : `Khóa học "${course.title}" đã ${status === 'approved' ? 'được phê duyệt' : 'bị từ chối'}.`,
           type: status === 'approved' ? 'success' : 'warning',
-          organizationId: course.organizationId,
           createdAt: new Date(),
         },
       });
@@ -2829,7 +2886,7 @@ app.patch('/api/courses/:id/status', authenticate, resolveTenant, async (req, re
   }
 });
 
-app.post('/api/courses/:id/submit', authenticate, resolveTenant, async (req, res) => {
+app.post('/api/courses/:id/submit', authenticate, async (req, res) => {
   const courseId = parseId(req.params.id);
 
   if (!courseId) {
@@ -2877,11 +2934,9 @@ app.post('/api/courses/:id/submit', authenticate, resolveTenant, async (req, res
     });
 
     const pendingCount = await prisma.course.count({
-      where: { status: 'pending', organizationId: course.organizationId },
     });
 
     const adminUsers = await prisma.user.findMany({
-      where: { role: 'admin', organizationId: course.organizationId },
       select: { id: true },
     });
 
@@ -2893,7 +2948,6 @@ app.post('/api/courses/:id/submit', authenticate, resolveTenant, async (req, res
           content: `Khóa học "${course.title}" đang chờ bạn phê duyệt.`,
           type: 'info',
           link: `/admin/courses?status=pending`,
-          organizationId: course.organizationId,
           createdAt: new Date(),
         },
       });
@@ -2939,14 +2993,13 @@ app.get('/api/courses/:id/status', authenticate, async (req, res) => {
   }
 });
 
-app.get('/api/admin/courses', authenticate, resolveTenant, async (req, res) => {
+app.get('/api/admin/courses', authenticate, async (req, res) => {
   const statusParam = typeof req.query.status === 'string' ? req.query.status : undefined;
   const status = courseStatuses.find((value) => value === statusParam);
 
   try {
     const courses = await prisma.course.findMany({
       where: {
-        organizationId: req.tenant?.organizationId || req.user!.organizationId,
         ...(status ? { status } : {}),
       },
       include: {
@@ -2972,12 +3025,11 @@ app.get('/api/admin/courses', authenticate, resolveTenant, async (req, res) => {
   }
 });
 
-app.get('/api/admin/pending-courses', authenticate, resolveTenant, async (req, res) => {
+app.get('/api/admin/pending-courses', authenticate, async (_req, res) => {
   try {
     const courses = await prisma.course.findMany({
       where: {
         status: 'pending',
-        organizationId: req.tenant?.organizationId || req.user!.organizationId,
       },
       include: {
         instructor: { select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true } },
@@ -3217,18 +3269,17 @@ app.get('/api/analytics', async (_req, res) => {
   }
 });
 
-app.patch('/api/orders/:id/refund', authenticate, resolveTenant, async (req, res) => {
+app.patch('/api/orders/:id/refund', authenticate, async (req, res) => {
   const orderId = parseId(req.params.id);
-  const organizationId = getOrganizationId(req);
 
-  if (!orderId || !organizationId) {
+  if (!orderId) {
     res.status(400).json({ error: 'Invalid order id' });
     return;
   }
 
   try {
     const order = await prisma.order.findFirst({
-      where: { id: orderId, organizationId },
+      where: { id: orderId },
       include: {
         user: { select: { id: true, firstName: true, lastName: true } },
         items: { include: { course: { select: { id: true, title: true } } } },
@@ -3242,7 +3293,7 @@ app.patch('/api/orders/:id/refund', authenticate, resolveTenant, async (req, res
     }
 
     const isOwner = order.userId === req.user!.userId;
-    const isAdmin = req.user!.role === 'admin' || req.user!.role === 'super_admin';
+    const isAdmin = req.user!.role === 'admin';
 
     if (!isOwner && !isAdmin) {
       res.status(403).json({ error: 'Forbidden' });
@@ -3315,7 +3366,7 @@ app.get('/api/quizzes/:id/questions', async (req, res) => {
   }
 });
 
-app.post('/api/quizzes/:id/questions', authenticate, resolveTenant, async (req, res) => {
+app.post('/api/quizzes/:id/questions', authenticate, async (req, res) => {
   const quizId = parseId(req.params.id);
   const { cau_hoi, lua_chon, dap_an_dung } = req.body as {
     cau_hoi?: string;
@@ -3326,17 +3377,12 @@ app.post('/api/quizzes/:id/questions', authenticate, resolveTenant, async (req, 
   const question = cau_hoi?.trim();
   const options = Array.isArray(lua_chon) ? lua_chon : [];
   const correctAnswer = dap_an_dung?.trim();
-  const organizationId = getOrganizationId(req);
 
   if (!quizId || !question || options.length === 0 || !correctAnswer) {
     res.status(400).json({ error: 'Invalid question payload' });
     return;
   }
 
-  if (!organizationId) {
-    res.status(400).json({ error: 'Organization context required' });
-    return;
-  }
 
   try {
     const newQuestion = await prisma.quizQuestion.create({
@@ -3345,7 +3391,7 @@ app.post('/api/quizzes/:id/questions', authenticate, resolveTenant, async (req, 
         question,
         options,
         correctAnswer,
-        organizationId,
+        
       },
     });
 

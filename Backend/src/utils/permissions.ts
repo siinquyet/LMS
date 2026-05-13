@@ -17,37 +17,24 @@ export const DEFAULT_PERMISSIONS: Record<string, Permission[]> = {
     'VIEW_REPORTS',
     'MANAGE_SETTINGS',
   ],
-  super_admin: [
-    'MANAGE_COURSES',
-    'MANAGE_USERS',
-    'VIEW_ANALYTICS',
-    'APPROVE_COURSES',
-    'MANAGE_ORDERS',
-    'MANAGE_PAYOUTS',
-    'VIEW_REPORTS',
-    'MANAGE_SETTINGS',
-    'MANAGE_ORGANIZATIONS',
-    'MANAGE_PERMISSIONS',
-  ],
+  
 };
 
-export const getUserPermissions = async (userId: number, organizationId: number): Promise<Permission[]> => {
+export const getUserPermissions = async (userId: number): Promise<Permission[]> => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { role: true, organizationId: true },
+    select: { role: true },
   });
 
   if (!user) return [];
 
-  if (user.organizationId !== organizationId) return [];
-
   const rolePermissions = await prisma.rolePermission.findMany({
-    where: { role: user.role, organizationId },
+    where: { role: user.role },
     select: { permission: true },
   });
 
   const userPermissions = await prisma.userPermission.findMany({
-    where: { userId, organizationId },
+    where: { userId },
     select: { permission: true, granted: true },
   });
 
@@ -66,10 +53,9 @@ export const getUserPermissions = async (userId: number, organizationId: number)
 
 export const hasPermission = async (
   userId: number,
-  organizationId: number,
   permission: Permission
 ): Promise<boolean> => {
-  const permissions = await getUserPermissions(userId, organizationId);
+  const permissions = await getUserPermissions(userId);
   return permissions.includes(permission);
 };
 
@@ -80,8 +66,7 @@ export const requirePermission = (permission: Permission) => {
       return;
     }
 
-    const organizationId = req.user.organizationId;
-    const hasPerm = await hasPermission(req.user.userId, organizationId, permission);
+    const hasPerm = await hasPermission(req.user.userId, permission);
 
     if (!hasPerm) {
       console.warn(`[Permission Denied] User ${req.user.userId} lacks ${permission}`);
@@ -100,8 +85,7 @@ export const requireAnyPermission = (...permissions: Permission[]) => {
       return;
     }
 
-    const organizationId = req.user.organizationId;
-    const userPerms = await getUserPermissions(req.user.userId, organizationId);
+    const userPerms = await getUserPermissions(req.user.userId);
 
     const hasAny = permissions.some(perm => userPerms.includes(perm));
 
@@ -122,8 +106,7 @@ export const requireAllPermissions = (...permissions: Permission[]) => {
       return;
     }
 
-    const organizationId = req.user.organizationId;
-    const userPerms = await getUserPermissions(req.user.userId, organizationId);
+    const userPerms = await getUserPermissions(req.user.userId);
 
     const hasAll = permissions.every(perm => userPerms.includes(perm));
 
@@ -141,24 +124,20 @@ export const generateToken = (): string => {
   return crypto.randomBytes(32).toString('hex');
 };
 
-export const seedRolePermissions = async (organizationId: number): Promise<void> => {
+export const seedRolePermissions = async (): Promise<void> => {
   for (const [role, permissions] of Object.entries(DEFAULT_PERMISSIONS)) {
     for (const permission of permissions) {
-      await prisma.rolePermission.upsert({
-        where: {
-          role_permission_organizationId: {
+      const existing = await prisma.rolePermission.findFirst({
+        where: { role: role as any, permission },
+      });
+      if (!existing) {
+        await prisma.rolePermission.create({
+          data: {
             role: role as any,
             permission,
-            organizationId,
           },
-        },
-        create: {
-          role: role as any,
-          permission,
-          organizationId,
-        },
-        update: {},
-      });
+        });
+      }
     }
   }
 };

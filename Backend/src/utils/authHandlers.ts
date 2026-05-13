@@ -3,7 +3,6 @@ import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { generateToken, getUserPermissions, DEFAULT_PERMISSIONS } from '../utils/permissions.js';
 import { authenticate } from '../middleware/auth.js';
-import { resolveTenant } from '../middleware/tenant.js';
 
 const prisma = new PrismaClient();
 
@@ -291,11 +290,9 @@ export const authHandlers = {
 
   getPermissions: [
     authenticate,
-    resolveTenant,
     async (req: Request, res: Response): Promise<void> => {
       try {
-        const organizationId = req.user!.organizationId;
-        const permissions = await getUserPermissions(req.user!.userId, organizationId);
+        const permissions = await getUserPermissions(req.user!.userId);
         const defaultPerms = DEFAULT_PERMISSIONS[req.user!.role] || [];
 
         res.json({
