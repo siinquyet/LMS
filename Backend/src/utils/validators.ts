@@ -38,7 +38,6 @@ export const courseCreateSchema = z.object({
   so_luong_toi_da: z.number().int().positive().nullable().optional(),
   trang_thai: z.enum(['draft', 'completed', 'pending', 'approved', 'rejected']).optional(),
   mo_ta: z.string().max(5000).optional(),
-  thumbnail: z.string().url().optional().nullable(),
   hinh_anh: z.string().url().optional().nullable(),
   muc_do: z.string().max(50).optional(),
   thoi_luong: z.string().max(50).optional(),

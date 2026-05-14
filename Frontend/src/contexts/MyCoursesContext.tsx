@@ -34,7 +34,7 @@ export interface Chapter {
 export interface PurchasedCourse {
 	id: number;
 	title: string;
-	thumbnail: string;
+	hinhAnh: string;
 	instructor: string;
 	price: number;
 	purchaseDate: string;
@@ -175,7 +175,7 @@ const defaultQuiz = [
 const defaultCourse: PurchasedCourse = {
 	id: 1,
 	title: "React & Next.js Full Course - Học từ cơ bản đến nâng cao",
-	thumbnail:
+	hinhAnh:
 		"https://images.unsplash.com/photo-1633356122544-f134324a6cee?w=800",
 	instructor: "Nguyễn Văn A",
 	price: 699000,
@@ -268,7 +268,7 @@ const defaultCourse: PurchasedCourse = {
 const defaultCourse2: PurchasedCourse = {
 	id: 2,
 	title: "TypeScript Fundamentals - Từ Cơ Bản Đến Nâng Cao",
-	thumbnail:
+	hinhAnh:
 		"https://images.unsplash.com/photo-1516116216624-53e697fedbea?w=800",
 	instructor: "Trần Thị B",
 	price: 499000,
@@ -328,7 +328,7 @@ const defaultCourse2: PurchasedCourse = {
 const defaultCourse3: PurchasedCourse = {
 	id: 3,
 	title: "Node.js Backend Development - Xây Dựng API",
-	thumbnail: "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=800",
+	hinhAnh: "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=800",
 	instructor: "Lê Văn C",
 	price: 799000,
 	purchaseDate: "10/01/2025",
@@ -387,7 +387,7 @@ const defaultCourse3: PurchasedCourse = {
 const defaultCourse4: PurchasedCourse = {
 	id: 4,
 	title: "Python for Data Science",
-	thumbnail:
+	hinhAnh:
 		"https://images.unsplash.com/photo-1526379095098-d400fd0bf935?w=800",
 	instructor: "Phạm Thị D",
 	price: 599000,
@@ -420,7 +420,7 @@ const defaultCourse4: PurchasedCourse = {
 const defaultCourse5: PurchasedCourse = {
 	id: 5,
 	title: "Vue.js 3 Complete Guide",
-	thumbnail:
+	hinhAnh:
 		"https://images.unsplash.com/photo-1614741118887-7a4ee193a5fa?w=800",
 	instructor: "Hoàng Văn E",
 	price: 549000,
@@ -473,7 +473,7 @@ const defaultCourse5: PurchasedCourse = {
 const defaultCourse6: PurchasedCourse = {
 	id: 6,
 	title: "SQL & Database Design",
-	thumbnail: "https://images.unsplash.com/photo-1544383835-bda2bc66a55d?w=800",
+	hinhAnh: "https://images.unsplash.com/photo-1544383835-bda2bc66a55d?w=800",
 	instructor: "Ngô Thị F",
 	price: 449000,
 	purchaseDate: "28/12/2024",

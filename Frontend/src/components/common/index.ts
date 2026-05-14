@@ -46,7 +46,8 @@ export { CommandPalette } from "./CommandPalette";
 export { NotificationCenter } from "./NotificationCenter";
 export { AuthScreen } from "./AuthScreen";
 export { SettingsPage } from "./SettingsPage";
-export { YouTubePlayer } from "./YouTubePlayer";
+export { DiscussionSection } from "./DiscussionSection";
+export { VideoPlayer } from "./VideoPlayer";
 export { LazyImage } from "./LazyImage";
 export { ErrorBoundary } from "./ErrorBoundary";
 

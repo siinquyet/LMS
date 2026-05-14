@@ -162,8 +162,8 @@ export const AdminDashboardPage: React.FC = () => {
 									>
 										<img
 											src={
-												course.thumbnail ||
-												"https://picsum.photos/seed/course/100/100"
+										course.hinh_anh ||
+										"https://picsum.photos/seed/course/100/100"
 											}
 											alt={course.tieu_de}
 											className="w-16 h-12 object-cover rounded"

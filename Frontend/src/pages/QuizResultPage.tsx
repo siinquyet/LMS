@@ -1,49 +1,94 @@
-import { Award, CheckCircle, ChevronLeft, Eye, RefreshCcw } from "lucide-react";
+import { Award, AlertCircle, ChevronLeft, Eye, RefreshCcw } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
-import { Button, Card } from "../components/common";
-import { learningQuizMock as mockQuiz } from "../mockData";
-
-interface QuizResult {
-	score: number;
-	total: number;
-	answers: number[];
-}
+import { Link, useParams, useSearchParams } from "react-router-dom";
+import { getCurrentUser, getLatestQuizAttempt, getLesson, getQuizAttemptReview } from "../api";
+import { Button, Card, Loader } from "../components/common";
 
 export const QuizResultPage: React.FC = () => {
 	const { courseId, lessonId } = useParams();
-	const [result, setResult] = useState<QuizResult | null>(null);
+	const [searchParams] = useSearchParams();
+	const attemptIdParam = searchParams.get('attemptId');
+
+	const [loading, setLoading] = useState(true);
+	const [error, setError] = useState<string | null>(null);
+	const [attemptData, setAttemptData] = useState<{
+		attempt: { id: number; diem: number };
+		questions: Array<{ id: number; cau_hoi: string; lua_chon: string[]; dap_an_dung: string; cau_tra_loi_cua_toi: string | null; dung_sai: boolean }>;
+	} | null>(null);
 
 	useEffect(() => {
-		const saved = localStorage.getItem("quizResult");
-		if (saved) {
-			const data = JSON.parse(saved);
-			setResult(data.result);
-		}
-	}, []);
+		const fetchResult = async () => {
+			try {
+				setLoading(true);
+				setError(null);
 
-	if (!result) {
+				let attemptId: number | null = attemptIdParam ? Number(attemptIdParam) : null;
+
+				// If no attemptId in URL, get latest attempt
+				if (!attemptId && lessonId) {
+					const user = getCurrentUser();
+					if (!user) {
+						setError("Vui lòng đăng nhập");
+						return;
+					}
+
+					const lessonData = await getLesson(Number(lessonId));
+					const quiz = lessonData?.lesson?.quizzes?.[0];
+					if (quiz) {
+						const latestData = await getLatestQuizAttempt(quiz.id, user.id);
+						attemptId = latestData?.attempt?.id || null;
+					}
+				}
+
+				if (!attemptId) {
+					setError("Không tìm thấy kết quả bài làm");
+					return;
+				}
+
+				const reviewData = await getQuizAttemptReview(attemptId);
+				setAttemptData(reviewData);
+			} catch (err) {
+				console.error("Error fetching result:", err);
+				setError("Không thể tải kết quả");
+			} finally {
+				setLoading(false);
+			}
+		};
+		fetchResult();
+	}, [lessonId, attemptIdParam]);
+
+	if (loading) return (
+		<div className="min-h-screen bg-[#F8F6F3] p-4 flex items-center justify-center">
+			<Loader />
+		</div>
+	);
+
+	if (error || !attemptData) {
 		return (
 			<div className="min-h-screen bg-[#F8F6F3] p-4 flex items-center justify-center">
-				<div className="text-center">
-					<p className="font-['Inter', sans-serif] text-[#6B7280] mb-4">
-						Không có kết quả
-					</p>
+				<Card className="p-8 text-center max-w-md">
+					<AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+					<p className="font-['Inter', sans-serif] text-[#6B7280] mb-4">{error || "Không có kết quả"}</p>
 					<Link to={`/quiz/${courseId}/${lessonId}/do`}>
 						<Button variant="primary">Làm bài</Button>
 					</Link>
-				</div>
+				</Card>
 			</div>
 		);
 	}
 
-	const percentage = Math.round((result.score / result.total) * 100);
+	const { attempt, questions } = attemptData;
+	const total = questions.length;
+	const correctCount = questions.filter(q => q.dung_sai).length;
+	const wrongCount = total - correctCount;
+
+	// Convert 10-point scale to percentage for display
+	const displayScore = correctCount;
+	const percentage = total > 0 ? Math.round((correctCount / total) * 100) : 0;
 	const passed = percentage >= 70;
-	const wrongCount = result.total - result.score;
 
 	return (
 		<div className="min-h-screen bg-[#F8F6F3]">
-			{/* Header */}
 			<div className="bg-white border-b-2 border-[#1C293C] px-4 py-3">
 				<Link
 					to={`/learn/${courseId}/${lessonId}`}
@@ -55,58 +100,36 @@ export const QuizResultPage: React.FC = () => {
 			</div>
 
 			<div className="max-w-2xl mx-auto p-4 space-y-6">
-				{/* Score Card */}
 				<Card className="p-8 text-center">
-					<div
-						className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 ${passed ? "bg-green-100" : "bg-orange-100"}`}
-					>
-						<Award
-							className={`w-10 h-10 ${passed ? "text-green-600" : "text-orange-500"}`}
-						/>
+					<div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 ${passed ? "bg-green-100" : "bg-orange-100"}`}>
+						<Award className={`w-10 h-10 ${passed ? "text-green-600" : "text-orange-500"}`} />
 					</div>
-					<h2 className="font-['Inter', sans-serif] text-xl text-[#1C293C] mb-2">
-						Kết quả bài làm
-					</h2>
+					<h2 className="font-['Inter', sans-serif] text-xl text-[#1C293C] mb-2">Kết quả bài làm</h2>
 					<p className="font-['Inter', sans-serif] text-4xl font-bold text-[#1C293C] mb-2">
-						{result.score}/{result.total}
+						{displayScore}/{total}
 					</p>
-					<p
-						className={`font-['Inter', sans-serif] text-2xl mb-4 ${passed ? "text-green-600" : "text-orange-500"}`}
-					>
+					<p className={`font-['Inter', sans-serif] text-2xl mb-4 ${passed ? "text-green-600" : "text-orange-500"}`}>
 						{percentage}% {passed ? "Đạt" : "Chưa đạt"}
-					</p>
-					<p className="font-['Inter', sans-serif] text-sm text-[#6B7280]">
-						{mockQuiz.title}
 					</p>
 				</Card>
 
-				{/* Stats */}
 				<Card className="p-4">
 					<div className="grid grid-cols-2 gap-4">
 						<div className="text-center p-3 bg-green-50 rounded-[8px]">
-							<p className="font-['Inter', sans-serif] text-2xl text-green-600 font-bold">
-								{result.score}
-							</p>
-							<p className="font-['Inter', sans-serif] text-xs text-[#6B7280]">
-								Đúng
-							</p>
+							<p className="font-['Inter', sans-serif] text-2xl text-green-600 font-bold">{correctCount}</p>
+							<p className="font-['Inter', sans-serif] text-xs text-[#6B7280]">Đúng</p>
 						</div>
 						<div className="text-center p-3 bg-red-50 rounded-[8px]">
-							<p className="font-['Inter', sans-serif] text-2xl text-red-500 font-bold">
-								{wrongCount}
-							</p>
-							<p className="font-['Inter', sans-serif] text-xs text-[#6B7280]">
-								Sai
-							</p>
+							<p className="font-['Inter', sans-serif] text-2xl text-red-500 font-bold">{wrongCount}</p>
+							<p className="font-['Inter', sans-serif] text-xs text-[#6B7280]">Sai</p>
 						</div>
 					</div>
 				</Card>
 
-				{/* Actions */}
 				<div className="space-y-3">
-					<Link to={`/quiz/${courseId}/${lessonId}/review`} className="block">
+					<Link to={`/quiz/${courseId}/${lessonId}/review?attemptId=${attempt.id}`} className="block">
 						<Button variant="primary" className="w-full">
-							<Eye className="w-4 h-4 mr-2" /> Xem câu sai ({wrongCount})
+							<Eye className="w-4 h-4 mr-2" /> Xem chi tiết
 						</Button>
 					</Link>
 

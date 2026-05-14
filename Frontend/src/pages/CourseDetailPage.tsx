@@ -109,7 +109,7 @@ export const CourseDetailPage: React.FC = () => {
 				xep_hang: course?.xep_hang || courseDetailMockData.rating,
 				so_luong_da_dang_ky:
 					course?.so_luong_da_dang_ky || courseDetailMockData.students,
-				thumbnail: course?.thumbnail || courseDetailMockData.thumbnail,
+				hinhAnh: course?.hinh_anh || courseDetailMockData.hinhAnh || "",
 				giang_vien: course?.giang_vien || {
 					ten: courseDetailMockData.instructor,
 					ho: "",
@@ -154,7 +154,7 @@ export const CourseDetailPage: React.FC = () => {
 		addItem({
 			id: course.id,
 			title: course.tieu_de,
-			thumbnail: course.thumbnail,
+			hinhAnh: course.hinh_anh,
 			instructor: course.giang_vien?.ten,
 			price: course.gia,
 			originalPrice: course.gia,
@@ -260,9 +260,8 @@ export const CourseDetailPage: React.FC = () => {
 							<Card className="bg-white p-0 overflow-hidden">
 								<img
 									src={
-										course.thumbnail ||
-										course.hinh_anh ||
-										"https://picsum.photos/seed/course/800/400"
+						course.hinh_anh ||
+						"https://picsum.photos/seed/course/800/400"
 									}
 									alt={course.tieu_de}
 									className="w-full h-48 object-cover"

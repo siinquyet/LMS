@@ -155,8 +155,8 @@ export const TeacherCoursesPage: React.FC = () => {
 						<Card key={course.id} hoverable className="overflow-hidden">
 							<img
 								src={
-									course.thumbnail ||
-									"https://picsum.photos/seed/course/400/300"
+							course.hinh_anh ||
+							"https://picsum.photos/seed/course/400/300"
 								}
 								alt={course.tieu_de}
 								className="w-full h-40 object-cover"

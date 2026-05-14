@@ -9,16 +9,31 @@ export interface Course {
 	muc_do: string;
 	danh_muc_id: number;
 	thoi_luong: string;
-	thumbnail: string;
 	trang_thai: "draft" | "pending" | "approved" | "rejected";
 	so_luong_da_dang_ky: number;
 	xep_hang: number;
+	hinh_anh?: string;
 	so_luong_toi_da?: number;
-	chapters?: any[];
+	chuong_hoc?: any[];
+	requirements?: string[];
+	what_you_learn?: string[];
 }
 
+const NEW_COURSE_TEMPLATE: Course = {
+	id: 0,
+	tieu_de: "",
+	mo_ta: "",
+	gia: 0,
+	muc_do: "",
+	danh_muc_id: 0,
+	thoi_luong: "",
+	trang_thai: "draft",
+	so_luong_da_dang_ky: 0,
+	xep_hang: 0,
+};
+
 export function useCourse(courseId: number, isNewCourse = false) {
-	const [course, setCourse] = useState<Course | null>(null);
+	const [course, setCourse] = useState<Course | null>(isNewCourse ? { ...NEW_COURSE_TEMPLATE } : null);
 	const [loading, setLoading] = useState(false);
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -35,7 +50,6 @@ export function useCourse(courseId: number, isNewCourse = false) {
 				muc_do: "",
 				danh_muc_id: 0,
 				thoi_luong: "",
-				thumbnail: "",
 				trang_thai: "draft",
 				so_luong_da_dang_ky: 0,
 				xep_hang: 0,
@@ -85,13 +99,14 @@ export function useCourse(courseId: number, isNewCourse = false) {
 	);
 
 	const saveCourse = useCallback(
-		async (courseData: Course) => {
+		async (courseData: Course): Promise<{ course: Course } | void> => {
 			if (isNewCourse) {
 				setSaving(true);
 				try {
 					const { course: data } = await api.createCourse(courseData as unknown as Record<string, unknown>);
 					setCourse(data);
 					alert("Tạo khóa học thành công!");
+					return { course: data };
 				} catch (e) {
 					alert("Tạo thất bại: " + (e as Error).message);
 					throw e;

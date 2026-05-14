@@ -47,7 +47,7 @@ export const VideoUpload: React.FC<VideoUploadProps> = ({
 
 		try {
 			const data = await uploadMedia(file, "lesson");
-			if (data.success && data.url) {
+			if (data.url) {
 				onChange(data.url);
 			}
 		} catch (err: any) {
@@ -75,7 +75,7 @@ export const VideoUpload: React.FC<VideoUploadProps> = ({
 				}
 
 				const data = await uploadMedia(file, "lesson");
-				if (data.success && data.url) {
+				if (data.url) {
 					uploadedUrls.push(data.url);
 				}
 			}

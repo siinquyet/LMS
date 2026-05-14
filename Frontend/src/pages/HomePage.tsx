@@ -212,9 +212,9 @@ export const HomePage: React.FC = () => {
 										<div className="relative">
 											<img
 												src={
-													course.thumbnail ||
-													course.thumbnailUrl ||
-													"https://picsum.photos/seed/course/400/300"
+										course.hinh_anh ||
+										course.hinhAnh ||
+										"https://picsum.photos/seed/course/400/300"
 												}
 												alt={course.tieu_de || course.title}
 												className="w-full h-40 object-cover"

@@ -107,13 +107,13 @@ const serializeCourse = (course: {
   so_luong_da_dang_ky: course.enrolledCount,
   trang_thai: course.status,
   mo_ta: course.description,
-hinh_anh: course.imageUrl,
+  hinh_anh: course.imageUrl,
   muc_do: course.level,
   thoi_luong: course.duration,
   so_bai_hoc: course.lessonCount,
   xep_hang: course.rating,
   requirements: course.requirements,
-  whatYouLearn: course.learningOutcomes,
+  what_you_learn: course.learningOutcomes,
   giang_vien: course.instructor
     ? {
         id: course.instructor.id,
@@ -186,10 +186,51 @@ const serializeComment = (comment: {
 });
 
 // Middleware
-app.use(helmet());
-app.use(cors({ origin: 'http://localhost:5173' }));
+app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: false }));
+app.use(cors({ origin: 'http://localhost:5173', credentials: true }));
 app.use(express.json());
 app.use('/uploads', express.static(uploadDir));
+
+// Video streaming endpoint with CORS
+app.get('/api/videos/*', (req, res) => {
+  const filename = req.params[0];
+  const filePath = path.join(uploadDir, filename);
+  
+  if (!fs.existsSync(filePath)) {
+    res.status(404).json({ error: 'Video not found' });
+    return;
+  }
+  
+  const stat = fs.statSync(filePath);
+  const fileSize = stat.size;
+  const range = req.headers.range;
+  
+  if (range) {
+    const parts = range.replace(/bytes=/, '').split('-');
+    const start = parseInt(parts[0], 10);
+    const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+    const chunksize = end - start + 1;
+    
+    res.setHeader('Access-Control-Allow-Origin', 'http://localhost:5173');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Content-Range', `bytes ${start}-${end}/${fileSize}`);
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Content-Length', chunksize);
+    res.setHeader('Content-Type', 'video/mp4');
+    
+    const stream = fs.createReadStream(filePath, { start, end });
+    stream.pipe(res);
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', 'http://localhost:5173');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Content-Length', fileSize);
+    res.setHeader('Content-Type', 'video/mp4');
+    fs.createReadStream(filePath).pipe(res);
+  }
+});
+
 app.use(globalRateLimiter);
 
 // Error handler (must be last)
@@ -615,8 +656,7 @@ app.get('/api/courses', async (req, res) => {
     const userId = req.headers['x-user-id'] ? Number(req.headers['x-user-id']) : undefined;
 
     const where: any = {
-      status: 'completed',
-      ...(categoryId ? { categoryId } : {}),
+      status: 'approved',      ...(categoryId ? { categoryId } : {}),
       ...(instructorId ? { instructorId } : {}),
       ...(search
         ? {
@@ -741,14 +781,13 @@ app.get('/api/teacher/courses/:id', authenticate, async (req, res) => {
         instructorId: req.user!.userId,
       },
       include: {
-        category: true,
-        chapters: {
+        category: true,          chapters: {
           orderBy: { order: 'asc' },
           include: {
             lessons: {
-              orderBy: { id: 'asc' },
+              orderBy: { order: 'asc' },
               include: {
-                quizzes: { select: { id: true, title: true } },
+                quizzes: { select: { id: true, title: true, questionCount: true, timeLimit: true } },
                 assignments: { select: { id: true, title: true } },
               },
             },
@@ -762,7 +801,39 @@ app.get('/api/teacher/courses/:id', authenticate, async (req, res) => {
       return;
     }
 
-    res.json({ course });
+    res.json({
+      course: {
+        ...serializeCourse(course),
+        danh_muc: course.category ? { id: course.category.id, ten: course.category.name } : undefined,
+        so_luong_toi_da: undefined,
+        chuong_hoc: course.chapters.map((chapter) => ({
+          id: chapter.id,
+          khoa_hoc_id: chapter.courseId,
+          tieu_de: chapter.title,
+          thu_tu: chapter.order,
+          bai_hoc: chapter.lessons.map((lesson) => ({
+            id: lesson.id,
+            chuong_hoc_id: lesson.chapterId,
+            tieu_de: lesson.title,
+            thu_tu: lesson.order,
+            video_url: lesson.videoUrl,
+            loai: lesson.type,
+            thoi_luong: lesson.duration,
+            noi_dung: lesson.content,
+            quizzes: lesson.quizzes.map((quiz) => ({
+              id: quiz.id,
+              tieu_de: quiz.title,
+              so_cau_hoi: quiz.questionCount,
+              thoi_gian_lam: quiz.timeLimit,
+            })),
+            assignments: lesson.assignments.map((assignment) => ({
+              id: assignment.id,
+              tieu_de: assignment.title,
+            })),
+          })),
+        })),
+      },
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Internal server error' });
@@ -864,6 +935,135 @@ app.get('/api/courses/:id', async (req, res) => {
     });
   } catch (error) {
     handleError(res, error);
+  }
+});
+
+app.get('/api/lessons/:id', async (req, res) => {
+  const lessonId = parseId(req.params.id);
+  if (!lessonId) {
+    res.status(400).json({ error: 'Invalid lesson id' });
+    return;
+  }
+
+  try {
+    const lesson = await prisma.lesson.findUnique({
+      where: { id: lessonId },
+      include: {
+        chapter: {
+          include: {
+            course: {
+              select: { id: true, title: true },
+            },
+          },
+        },
+        quizzes: {
+          select: { id: true, title: true, questionCount: true, timeLimit: true },
+        },
+        assignments: {
+          select: { id: true, title: true, isRequired: true, dueAt: true },
+        },
+      },
+    });
+
+    if (!lesson) {
+      res.status(404).json({ error: 'Lesson not found' });
+      return;
+    }
+
+    res.json({
+      lesson: {
+        id: lesson.id,
+        bai_hoc_id: lesson.chapterId,
+        chuong_hoc_id: lesson.chapterId,
+        khoa_hoc_id: lesson.chapter.courseId,
+        tieu_de: lesson.title,
+        video_url: lesson.videoUrl,
+        loai: lesson.type,
+        thoi_luong: lesson.duration,
+        noi_dung: lesson.content,
+        khoa_hoc: lesson.chapter.course,
+        quizzes: lesson.quizzes,
+        assignments: lesson.assignments,
+      },
+    });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.post('/api/lessons/:lessonId/quiz', authenticate, async (req, res) => {
+  const lessonId = parseId(req.params.lessonId);
+  const { tieu_de, thoi_gian_lam, questions } = req.body as {
+    tieu_de?: string;
+    thoi_gian_lam?: number;
+    questions?: Array<{ cau_hoi: string; lua_chon: string[]; dap_an_dung: number }>;
+  };
+
+  if (!lessonId || !tieu_de?.trim()) {
+    res.status(400).json({ error: 'Invalid quiz payload' });
+    return;
+  }
+
+  try {
+    const lesson = await prisma.lesson.findFirst({
+      where: { id: lessonId },
+      include: { chapter: { include: { course: { select: { instructorId: true } } } } },
+    });
+
+    if (!lesson) {
+      res.status(404).json({ error: 'Lesson not found' });
+      return;
+    }
+
+    if (lesson.chapter.course.instructorId !== req.user!.userId) {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
+
+    const quiz = await prisma.quiz.create({
+      data: {
+        lessonId,
+        title: tieu_de.trim(),
+        timeLimit: typeof thoi_gian_lam === 'number' ? thoi_gian_lam : 10,
+        questionCount: Array.isArray(questions) ? questions.length : 0,
+      },
+    });
+
+    if (Array.isArray(questions) && questions.length > 0) {
+      await prisma.quizQuestion.createMany({
+        data: questions.map((q) => ({
+          quizId: quiz.id,
+          question: q.cau_hoi,
+          options: q.lua_chon,
+          correctAnswer: q.lua_chon[q.dap_an_dung] || q.lua_chon[0],
+        })),
+      });
+    }
+
+    const quizWithQuestions = await prisma.quiz.findUnique({
+      where: { id: quiz.id },
+      include: { questions: { orderBy: { id: 'asc' } } },
+    });
+
+    res.status(201).json({
+      quiz: {
+        id: quizWithQuestions!.id,
+        bai_hoc_id: quizWithQuestions!.lessonId,
+        tieu_de: quizWithQuestions!.title,
+        thoi_gian_lam: quizWithQuestions!.timeLimit,
+        so_cau_hoi: quizWithQuestions!.questionCount,
+        questions: quizWithQuestions!.questions.map((q) => ({
+          id: q.id,
+          quiz_id: q.quizId,
+          cau_hoi: q.question,
+          lua_chon: q.options,
+          dap_an_dung: q.correctAnswer,
+        })),
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -985,7 +1185,7 @@ app.post('/api/courses', authenticate, async (req, res) => {
     muc_do,
     thoi_luong,
     requirements,
-    whatYouLearn,
+    what_you_learn,
   } = req.body as Record<string, unknown>;
 
   const title = typeof tieu_de === 'string' ? tieu_de.trim() : '';
@@ -1013,7 +1213,7 @@ app.post('/api/courses', authenticate, async (req, res) => {
         level: typeof muc_do === 'string' ? muc_do : null,
         duration: typeof thoi_luong === 'string' ? thoi_luong : null,
         requirements: Array.isArray(requirements) ? requirements : undefined,
-        learningOutcomes: Array.isArray(whatYouLearn) ? whatYouLearn : undefined,
+        learningOutcomes: Array.isArray(what_you_learn) ? what_you_learn : undefined,
         
       },
       include: {
@@ -1048,7 +1248,7 @@ app.patch('/api/courses/:id', async (req, res) => {
     muc_do,
     thoi_luong,
     requirements,
-    whatYouLearn,
+    what_you_learn,
   } = req.body as Record<string, unknown>;
 
   try {
@@ -1065,7 +1265,7 @@ app.patch('/api/courses/:id', async (req, res) => {
         level: typeof muc_do === 'string' ? muc_do : undefined,
         duration: typeof thoi_luong === 'string' ? thoi_luong : undefined,
         requirements: Array.isArray(requirements) ? requirements : undefined,
-        learningOutcomes: Array.isArray(whatYouLearn) ? whatYouLearn : undefined,
+        learningOutcomes: Array.isArray(what_you_learn) ? what_you_learn : undefined,
       },
       include: {
         instructor: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
@@ -1697,6 +1897,10 @@ app.use('/api/courses', courseRoutes);
 import quizRoutes from './routes/quiz.routes.js';
 app.use('/api/quizzes', quizRoutes);
 
+// Mount media routes for uploads
+import mediaRoutes from './routes/media.js';
+app.use('/api/media', mediaRoutes);
+
 // Phase 1.2: GET /api/enrollments/check/:courseId
 app.get('/api/enrollments/check/:courseId', authenticate, async (req, res) => {
   const courseId = parseId(req.params.courseId);
@@ -1784,7 +1988,7 @@ app.get('/api/my-enrollments', authenticate, async (req, res) => {
             id: enrollment.course.id,
             tieu_de: enrollment.course.title,
             mo_ta: enrollment.course.description || "",
-            thumbnail: enrollment.course.imageUrl,
+            hinh_anh: enrollment.course.imageUrl,
             gia: enrollment.course.price,
             muc_do: enrollment.course.level,
             trang_thai: enrollment.course.status,
@@ -1846,7 +2050,7 @@ app.post('/api/cart', authenticate, async (req, res) => {
       return;
     }
 
-    if (course.status !== 'completed') {
+    if (course.status !== 'approved') {
       res.status(400).json({ error: 'Khóa học không khả dụng' });
       return;
     }
@@ -2367,6 +2571,7 @@ app.post('/api/quizzes/:id/attempts', authenticate, async (req, res) => {
         quizId,
         userId,
         score,
+        answers: answers,
         takenAt: new Date(),
       },
     });
@@ -2388,6 +2593,241 @@ app.post('/api/quizzes/:id/attempts', authenticate, async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Review endpoint: get attempt details with questions and answers
+app.get('/api/quizzes/attempts/:attemptId/review', async (req, res) => {
+  const attemptId = parseId(req.params.attemptId);
+
+  if (!attemptId) {
+    res.status(400).json({ error: 'Invalid attempt id' });
+    return;
+  }
+
+  try {
+    const attempt = await prisma.quizAttempt.findUnique({
+      where: { id: attemptId },
+      include: {
+        quiz: {
+          include: {
+            questions: { orderBy: { id: 'asc' } },
+          },
+        },
+      },
+    });
+
+    if (!attempt) {
+      res.status(404).json({ error: 'Attempt not found' });
+      return;
+    }
+
+    const userAnswers = (attempt.answers as Array<{ questionId: number; answer: string }>) || [];
+    const answerMap = new Map(userAnswers.map((a: any) => [a.questionId, a.answer]));
+
+    res.json({
+      attempt: {
+        id: attempt.id,
+        quiz_id: attempt.quizId,
+        nguoi_dung_id: attempt.userId,
+        diem: attempt.score,
+        ngay_lam: attempt.takenAt.toISOString(),
+      },
+      questions: attempt.quiz.questions.map((q) => ({
+        id: q.id,
+        quiz_id: q.quizId,
+        cau_hoi: q.question,
+        lua_chon: q.options,
+        dap_an_dung: q.correctAnswer,
+        cau_tra_loi_cua_toi: answerMap.get(q.id) || null,
+        dung_sai: answerMap.get(q.id) === q.correctAnswer,
+      })),
+    });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+// Get latest quiz attempt for a user quiz
+app.get('/api/quizzes/:quizId/attempts/latest', async (req, res) => {
+  const quizId = parseId(req.params.quizId);
+  const userId = req.query.userId ? Number(req.query.userId) : undefined;
+
+  if (!quizId || !userId) {
+    res.status(400).json({ error: 'Invalid params' });
+    return;
+  }
+
+  try {
+    const attempt = await prisma.quizAttempt.findFirst({
+      where: { quizId, userId },
+      orderBy: { takenAt: 'desc' },
+    });
+
+    if (!attempt) {
+      res.json({ attempt: null });
+      return;
+    }
+
+    res.json({
+      attempt: {
+        id: attempt.id,
+        quiz_id: attempt.quizId,
+        nguoi_dung_id: attempt.userId,
+        diem: attempt.score,
+        ngay_lam: attempt.takenAt.toISOString(),
+      },
+    });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+// Get all quizzes with attempt status and scores (completed lesson quizzes)
+app.get('/api/assignments/skipped-quizzes', async (req, res) => {
+  const userId = parseOptionalId(req.query.userId);
+
+  if (!userId) {
+    res.status(400).json({ error: 'UserId required' });
+    return;
+  }
+
+  try {
+    // Find all lessons that have quizzes, where the user completed the lesson
+    const completedLessons = await prisma.progress.findMany({
+      where: { userId, completed: true },
+      select: { lessonId: true },
+    });
+
+    const completedLessonIds = completedLessons.map((p) => p.lessonId);
+
+    if (completedLessonIds.length === 0) {
+      res.json({ quizzes: [] });
+      return;
+    }
+
+    // Get quizzes in completed lessons
+    const quizzes = await prisma.quiz.findMany({
+      where: { lessonId: { in: completedLessonIds } },
+      include: {
+        lesson: {
+          include: {
+            chapter: {
+              include: {
+                course: { select: { id: true, title: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (quizzes.length === 0) {
+      res.json({ quizzes: [] });
+      return;
+    }
+
+    // Get latest attempt per quiz for this user
+    const quizIds = quizzes.map((q) => q.id);
+    const attempts = await prisma.quizAttempt.findMany({
+      where: { quizId: { in: quizIds }, userId },
+      orderBy: { takenAt: 'desc' },
+    });
+
+    // Build a map of quizId -> latest attempt
+    const latestAttemptMap = new Map<number, typeof attempts[0]>();
+    for (const att of attempts) {
+      if (!latestAttemptMap.has(att.quizId)) {
+        latestAttemptMap.set(att.quizId, att);
+      }
+    }
+
+    const result = quizzes.map((q) => {
+      const latestAttempt = latestAttemptMap.get(q.id);
+      const isAttempted = !!latestAttempt;
+      return {
+        id: q.id,
+        tieu_de: q.title,
+        so_cau_hoi: q.questionCount,
+        thoi_gian_lam: q.timeLimit,
+        bai_hoc_id: q.lessonId,
+        ten_bai_hoc: q.lesson.title,
+        khoa_hoc: {
+          id: q.lesson.chapter.course.id,
+          tieu_de: q.lesson.chapter.course.title,
+        },
+        trang_thai: isAttempted ? 'da_lam' : 'chua_lam',
+        diem: latestAttempt ? latestAttempt.score : null,
+        lan_lam_cuoi: latestAttempt ? latestAttempt.takenAt.toISOString() : null,
+        so_lan_lam: attempts.filter(a => a.quizId === q.id).length,
+      };
+    });
+
+    res.json({ quizzes: result });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+// Get quiz scores for a course (for LearningPage)
+app.get('/api/courses/:courseId/quiz-scores', async (req, res) => {
+  const courseId = parseId(req.params.courseId);
+  const userId = parseOptionalId(req.query.userId);
+
+  if (!courseId || !userId) {
+    res.status(400).json({ error: 'CourseId and userId required' });
+    return;
+  }
+
+  try {
+    // Get all quizzes in this course
+    const quizzes = await prisma.quiz.findMany({
+      where: {
+        lesson: {
+          chapter: { courseId },
+        },
+      },
+      select: { id: true, lessonId: true, title: true, questionCount: true },
+    });
+
+    if (quizzes.length === 0) {
+      res.json({ quiz_scores: [] });
+      return;
+    }
+
+    // Get latest attempt for each quiz by this user
+    const quizIds = quizzes.map(q => q.id);
+    const attempts = await prisma.quizAttempt.findMany({
+      where: { quizId: { in: quizIds }, userId },
+      orderBy: { takenAt: 'desc' },
+    });
+
+    const latestAttemptMap = new Map<number, typeof attempts[0]>();
+    const attemptCountMap = new Map<number, number>();
+    for (const att of attempts) {
+      if (!latestAttemptMap.has(att.quizId)) {
+        latestAttemptMap.set(att.quizId, att);
+      }
+      attemptCountMap.set(att.quizId, (attemptCountMap.get(att.quizId) || 0) + 1);
+    }
+
+    res.json({
+      quiz_scores: quizzes.map(q => {
+        const latest = latestAttemptMap.get(q.id);
+        return {
+          quiz_id: q.id,
+          bai_hoc_id: q.lessonId,
+          tieu_de: q.title,
+          so_cau_hoi: q.questionCount,
+          trang_thai: latest ? 'da_lam' : 'chua_lam',
+          diem: latest?.score ?? null,
+          lan_lam_cuoi_id: latest?.id ?? null,
+          so_lan_lam: attemptCountMap.get(q.id) || 0,
+        };
+      }),
+    });
+  } catch (error) {
+    handleError(res, error);
   }
 });
 

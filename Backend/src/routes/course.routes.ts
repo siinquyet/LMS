@@ -8,7 +8,7 @@ import { asyncHandler, AppError } from '../middleware/errorHandler.js';
 const prisma = new PrismaClient();
 const router = Router();
 
-const courseStatuses = ['draft', 'completed', 'pending', 'published', 'rejected'] as const;
+const courseStatuses = ['draft', 'completed', 'pending', 'approved', 'published', 'rejected'] as const;
 
 const serializeCourse = (course: {
   id: number;
@@ -54,11 +54,16 @@ router.get('/', asyncHandler(async (req, res) => {
   const sortBy = typeof req.query.sortBy === 'string' ? req.query.sortBy : undefined;
   const page = req.query.page ? Number(req.query.page) : 1;
   const limit = req.query.limit ? Number(req.query.limit) : 12;
+  const statusFilter = typeof req.query.status === 'string' ? req.query.status : undefined;
 
   const userId = req.headers['x-user-id'] ? Number(req.headers['x-user-id']) : undefined;
 
+  // Default: only show approved courses to the store
+  // If a specific status is requested (e.g. by admin), use that
+  // If 'all' is requested, show all statuses
   const where: any = {
-    status: 'completed',
+    ...(statusFilter && statusFilter !== 'all' ? { status: statusFilter } : {}),
+    ...(!statusFilter ? { status: 'approved' } : {}),
     ...(categoryId ? { categoryId } : {}),
     ...(instructorId ? { instructorId } : {}),
     ...(search ? { OR: [{ title: { contains: search, mode: 'insensitive' } }, { description: { contains: search, mode: 'insensitive' } }] } : {}),

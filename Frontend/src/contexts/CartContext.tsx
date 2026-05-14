@@ -3,7 +3,7 @@ import { type ReactNode, createContext, useContext, useState } from "react";
 export interface CartItem {
 	id: number;
 	title: string;
-	thumbnail: string;
+	hinhAnh: string;
 	instructor: string;
 	price: number;
 	originalPrice: number;

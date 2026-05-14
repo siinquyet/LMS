@@ -71,11 +71,8 @@ export function useTeacherCourseEditor(courseId: number, isNewCourse = false) {
 	const modals = useModals();
 
 	useEffect(() => {
-		if (course.course?.chapters) {
-			setChapters(course.course.chapters.map((ch: any) => ({
-				...ch,
-				bai_hoc: ch.lessons || [],
-			})));
+		if (course.course?.chuong_hoc) {
+			setChapters(course.course.chuong_hoc);
 		}
 	}, [course.course]);
 
@@ -180,7 +177,13 @@ export function useTeacherCourseEditor(courseId: number, isNewCourse = false) {
 
 	const handleSubmitForApproval = () => course.submitForApproval();
 	const handleRevertToDraft = () => course.revertToDraft();
-	const handleSaveCourse = () => course.saveCourse(course.course!);
+	const handleSaveCourse = async () => {
+		if (!course.course) {
+			alert("Khóa học chưa sẵn sàng. Vui lòng đợi...");
+			return;
+		}
+		return course.saveCourse(course.course);
+	};
 
 	const handleDeleteChapter = async (chapterId: number) => {
 		if (!confirm("Xóa chương này sẽ xóa tất cả bài học trong chương. Tiếp tục?")) return;
@@ -204,16 +207,18 @@ export function useTeacherCourseEditor(courseId: number, isNewCourse = false) {
 						: ch,
 				),
 			);
-		} catch (e) {
+		} catch (e: any) {
 			console.error("Xóa thất bại:", e);
+			alert(e?.message || "Xóa bài học thất bại");
 		}
 	};
 
 	const lessonFormWithMethods = {
 		...lessonForm,
-		openWithChapter: (chapterId: number, type: "video" | "exercise") => {
-			lessonForm.setFields({ loai: type });
+		openWithChapter: (chapterId: number, type: "video" | "quiz") => {
 			openLessonModal(chapterId);
+			// Set type AFTER reset() to avoid override
+			lessonForm.setFields({ loai: type });
 		},
 		edit: (lesson: Lesson, chapterId: number) => {
 			openLessonModal(chapterId, lesson);
@@ -236,6 +241,7 @@ return {
 		course: course.course,
 		courseField: course.setCourseField,
 		chapters,
+		setChapters,
 		...chaptersHook,
 		loading: course.loading,
 		saving: course.saving,

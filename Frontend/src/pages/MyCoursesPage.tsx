@@ -38,7 +38,7 @@ interface Enrollment {
 		id: number;
 		tieu_de: string;
 		mo_ta: string;
-		thumbnail?: string;
+		hinh_anh?: string;
 		gia: number;
 		giang_vien: {
 			id: number;
@@ -187,8 +187,8 @@ export const MyCoursesPage: React.FC = () => {
 								<div className="flex gap-4 flex-col md:flex-row">
 									<img
 										src={
-											enrollment.khoa_hoc.thumbnail ||
-											"https://picsum.photos/seed/course/200/150"
+						enrollment.khoa_hoc.hinh_anh ||
+						"https://picsum.photos/seed/course/200/150"
 										}
 										alt={enrollment.khoa_hoc.tieu_de}
 										className="w-full md:w-48 h-40 md:h-32 object-cover border-[3px] border-[#1C293C]"

@@ -81,11 +81,11 @@ router.post('/upload', authenticate, async (req: any, res) => {
       else if (!file.mimetype.startsWith('image/')) mediaType = 'document';
 
       const url = `/uploads/${entityType === 'user' ? 'avatars' : entityType === 'forum_post' ? 'forum' : 'courses'}/${file.filename}`;
-      const userId = req.user.id;
+      const userId = req.user.userId;
 
       const entityId = parseInt(req.body.entityId) || 0;
 
-      if (entityType === 'user') {
+      if (entityType === 'user' && userId) {
         const existingUser = await prisma.user.findUnique({
           where: { id: userId },
           select: { avatarUrl: true }
@@ -107,7 +107,7 @@ router.post('/upload', authenticate, async (req: any, res) => {
           size: file.size,
           entityType: entityType || 'user',
           entityId: entityId || userId,
-          uploadedBy: userId,
+          uploadedBy: userId || 0,
           
         }
       });
@@ -158,7 +158,7 @@ router.get('/:id', authenticate, async (req: any, res) => {
 router.delete('/:id', authenticate, async (req: any, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user.id;
+    const userId = req.user.userId;
     const userRole = req.user.role;
 
     const media = await prisma.media.findUnique({ where: { id: parseInt(id) } });
@@ -171,7 +171,6 @@ router.delete('/:id', authenticate, async (req: any, res) => {
       res.status(403).json({ error: 'Not authorized' });
       return;
     }
-
     const filePath = path.join(__dirname, '../../', media.url.replace('/uploads', 'uploads'));
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
 
@@ -194,7 +193,7 @@ router.delete('/:id', authenticate, async (req: any, res) => {
 router.patch('/:id', authenticate, async (req: any, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user.id;
+    const userId = req.user.userId;
     const { entityType, entityId } = req.body;
 
     const media = await prisma.media.findUnique({ where: { id: parseInt(id) } });

@@ -23,7 +23,7 @@ interface CartItem {
 	khoa_hoc: {
 		id: number;
 		tieu_de: string;
-		thumbnail?: string;
+		hinh_anh?: string;
 		giang_vien: {
 			id: number;
 			ho: string;
@@ -140,8 +140,8 @@ export const CartPage: React.FC = () => {
 							<Card key={item.id} className="flex gap-4">
 								<img
 									src={
-										item.khoa_hoc.thumbnail ||
-										"https://picsum.photos/seed/course/300/200"
+						item.khoa_hoc.hinh_anh ||
+						"https://picsum.photos/seed/course/300/200"
 									}
 									alt={item.khoa_hoc.tieu_de}
 									className="w-32 h-24 object-cover rounded-[12px] border-2 border-[#1C293C]"

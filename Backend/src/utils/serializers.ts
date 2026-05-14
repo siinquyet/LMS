@@ -43,7 +43,6 @@ export const serializeCourse = (course: {
   enrolledCount: number;
   status: string;
   description: string | null;
-  thumbnailUrl: string | null;
   imageUrl: string | null;
   level: string | null;
   duration: string | null;
@@ -62,7 +61,6 @@ export const serializeCourse = (course: {
   so_luong_da_dang_ky: course.enrolledCount,
   trang_thai: course.status,
   mo_ta: course.description,
-  thumbnail: course.thumbnailUrl,
   hinh_anh: course.imageUrl,
   muc_do: course.level,
   thoi_luong: course.duration,

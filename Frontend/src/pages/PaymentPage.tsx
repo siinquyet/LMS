@@ -24,7 +24,7 @@ interface Order {
 		khoa_hoc: {
 			id: number;
 			tieu_de: string;
-			thumbnail?: string;
+			hinh_anh?: string;
 		};
 	}[];
 }
@@ -194,8 +194,8 @@ export const PaymentPage: React.FC = () => {
 								<div key={item.id} className="flex gap-3">
 									<img
 										src={
-											item.khoa_hoc.thumbnail ||
-											"https://picsum.photos/seed/course/100/60"
+						item.khoa_hoc.hinh_anh ||
+						"https://picsum.photos/seed/course/100/60"
 										}
 										alt={item.khoa_hoc.tieu_de}
 										className="w-20 h-14 object-cover rounded"

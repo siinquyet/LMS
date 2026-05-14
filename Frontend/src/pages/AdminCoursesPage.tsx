@@ -32,7 +32,8 @@ export const AdminCoursesPage: React.FC = () => {
 		const fetchCourses = async () => {
 			setLoading(true);
 			try {
-				const { courses: data } = await getCourses();
+				// Admin sees all courses by passing status='all'
+				const { courses: data } = await getCourses({ status: 'all' });
 				setCourses(data || []);
 			} catch (error) {
 				console.error("Error fetching courses:", error);
@@ -165,10 +166,8 @@ export const AdminCoursesPage: React.FC = () => {
 										<td className="py-3 px-4">
 											<div className="flex items-center gap-3">
 												<img
-													src={
-														course.thumbnail ||
-														course.hinh_anh ||
-														"https://picsum.photos/seed/course/100/80"
+													src={						course.hinh_anh ||
+						"https://picsum.photos/seed/course/100/80"
 													}
 													alt={course.tieu_de || course.title}
 													className="w-12 h-8 object-cover rounded"

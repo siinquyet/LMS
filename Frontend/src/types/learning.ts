@@ -47,7 +47,6 @@ export interface EnrollmentCourse {
 	id: number;
 	tieu_de: string;
 	mo_ta: string | null;
-	thumbnail: string | null;
 	gia: number;
 	giang_vien: {
 		id: number;

@@ -12,7 +12,6 @@ export interface Course {
 	so_luong_da_dang_ky: number;
 	trang_thai: string;
 	mo_ta?: string;
-	thumbnail?: string;
 	hinh_anh?: string;
 	muc_do?: string;
 	thoi_luong?: string;

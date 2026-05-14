@@ -1,31 +1,24 @@
-import { ChevronLeft, Clock, X, Zap } from "lucide-react";
+import { AlertCircle, ChevronLeft, Clock, X, Zap } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
-import { getLesson, getQuizQuestions } from "../api";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { getCurrentUser, getLesson, getQuizQuestions, submitQuizAttempt } from "../api";
 import { Button, Card, Loader, Progress } from "../components/common";
-import { learningQuizMock as mockQuiz } from "../mockData";
-
-interface QuizQuestion {
-	id: number;
-	question: string;
-	options: string[];
-	correct: number;
-}
-
-interface Quiz {
-	id: number;
-	title: string;
-	courseName: string;
-	timeLimit: number;
-	questions: QuizQuestion[];
-}
 
 export const QuizDoPage: React.FC = () => {
 	const { courseId, lessonId } = useParams();
+	const navigate = useNavigate();
 	const [loading, setLoading] = useState(true);
-	const [quizData, setQuizData] = useState<any>(null);
-	const [answers, setAnswers] = useState<number[]>([]);
+	const [submitting, setSubmitting] = useState(false);
+	const [quizId, setQuizId] = useState<number | null>(null);
+	const [questions, setQuestions] = useState<any[]>([]);
+	const [answers, setAnswers] = useState<(string | undefined)[]>([]);
+
+	const getOptionValue = (option: any): string =>
+		typeof option === 'object' && option !== null ? option.id : String(option);
+	const getOptionText = (option: any): string =>
+		typeof option === 'object' && option !== null ? option.text : String(option);
 	const [currentQuestion, setCurrentQuestion] = useState(0);
+	const [error, setError] = useState<string | null>(null);
 
 	useEffect(() => {
 		const fetchQuiz = async () => {
@@ -34,22 +27,23 @@ export const QuizDoPage: React.FC = () => {
 				return;
 			}
 			try {
+				setError(null);
 				const lessonData = await getLesson(Number(lessonId));
-				const lesson = lessonData.bai_hoc;
+				const lesson = lessonData.lesson;
 
 				if (lesson.quizzes && lesson.quizzes.length > 0) {
 					const quiz = lesson.quizzes[0];
+					setQuizId(quiz.id);
 					const questionsData = await getQuizQuestions(quiz.id);
-					setQuizData({
-						...quiz,
-						questions: questionsData.cau_hoi || [],
-					});
+					const qs = questionsData.cau_hoi || [];
+					setQuestions(qs);
+					setAnswers(new Array(qs.length).fill(undefined));
 				} else {
-					setQuizData(mockQuiz);
+					setError("Không tìm thấy bài kiểm tra cho bài học này");
 				}
 			} catch (error) {
 				console.error("Error fetching quiz:", error);
-				setQuizData(mockQuiz);
+				setError("Không thể tải bài kiểm tra");
 			} finally {
 				setLoading(false);
 			}
@@ -59,13 +53,26 @@ export const QuizDoPage: React.FC = () => {
 
 	if (loading) return <Loader />;
 
-	const questions = quizData?.questions || mockQuiz.questions;
-	const currentQ = questions[currentQuestion];
-	const progress = ((currentQuestion + 1) / questions.length) * 100;
+	if (error) {
+		return (
+			<div className="min-h-screen bg-[#F8F6F3] p-4 flex items-center justify-center">
+				<Card className="p-8 text-center max-w-md">
+					<AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+					<p className="font-['Inter', sans-serif] text-red-500 mb-4">{error}</p>
+					<Link to={`/learn/${courseId}/${lessonId}`}>
+						<Button variant="primary">Quay lại bài học</Button>
+					</Link>
+				</Card>
+			</div>
+		);
+	}
 
-	const handleSelectAnswer = (optionIndex: number) => {
+	const currentQ = questions[currentQuestion];
+	const progress = questions.length > 0 ? ((currentQuestion + 1) / questions.length) * 100 : 0;
+
+	const handleSelectAnswer = (optionText: string) => {
 		const newAnswers = [...answers];
-		newAnswers[currentQuestion] = optionIndex;
+		newAnswers[currentQuestion] = optionText;
 		setAnswers(newAnswers);
 	};
 
@@ -81,16 +88,35 @@ export const QuizDoPage: React.FC = () => {
 		}
 	};
 
-	const handleSubmit = () => {
-		const score = answers.filter(
-			(ans, idx) => ans === questions[idx].correct,
-		).length;
-		const result = { score, total: questions.length };
-		localStorage.setItem(
-			"quizResult",
-			JSON.stringify({ answers, result, quizId: mockQuiz.id }),
-		);
-		window.location.href = `/quiz/${courseId}/${lessonId}/result`;
+	const handleSubmit = async () => {
+		if (!quizId || submitting) return;
+		const user = getCurrentUser();
+		if (!user) {
+			setError("Vui lòng đăng nhập để nộp bài");
+			return;
+		}
+
+		setSubmitting(true);
+		setError(null);
+
+		try {
+			const formattedAnswers = questions.map((q: any, i: number) => ({
+				questionId: q.id,
+				answer: answers[i] || '',
+			}));
+
+			const data = await submitQuizAttempt(quizId, user.id, formattedAnswers);
+			navigate(`/quiz/${courseId}/${lessonId}/result?attemptId=${data.attempt.id}`);
+		} catch (err: any) {
+			const message = err?.message || '';
+			if (message.includes('cần hoàn thành')) {
+				setError('Bạn cần hoàn thành bài học trước để làm bài kiểm tra này');
+			} else {
+				setError(message || 'Không thể nộp bài. Vui lòng thử lại');
+			}
+		} finally {
+			setSubmitting(false);
+		}
 	};
 
 	const answeredCount = answers.filter((a) => a !== undefined).length;
@@ -109,7 +135,7 @@ export const QuizDoPage: React.FC = () => {
 				<div className="flex items-center gap-2 text-[#6B7280]">
 					<Clock className="w-4 h-4" />
 					<span className="font-['Inter', sans-serif] text-sm">
-						{mockQuiz.timeLimit / 60} phút
+						{questions.length} câu hỏi
 					</span>
 				</div>
 			</div>
@@ -143,13 +169,15 @@ export const QuizDoPage: React.FC = () => {
 					</div>
 
 					<div className="space-y-3">
-						{currentQ.options.map((option, optIdx) => {
-							const isSelected = answers[currentQuestion] === optIdx;
+						{currentQ.lua_chon.map((option: any, optIdx: number) => {
+							const optVal = getOptionValue(option);
+							const optText = getOptionText(option);
+							const isSelected = answers[currentQuestion] === optVal;
 							return (
 								<button
 									key={optIdx}
 									type="button"
-									onClick={() => handleSelectAnswer(optIdx)}
+									onClick={() => handleSelectAnswer(optVal)}
 									className={`w-full p-4 text-left rounded-[8px] border-2 font-['Inter', sans-serif] transition-colors ${
 										isSelected
 											? "border-[#49B6E5] bg-[#E8F6FC] text-[#1C293C]"
@@ -159,7 +187,7 @@ export const QuizDoPage: React.FC = () => {
 									<span className="mr-3 font-semibold">
 										{String.fromCharCode(65 + optIdx)}.
 									</span>
-									{option}
+									{optText}
 								</button>
 							);
 						})}
@@ -185,10 +213,10 @@ export const QuizDoPage: React.FC = () => {
 						<Button
 							variant="primary"
 							onClick={handleSubmit}
-							disabled={answeredCount !== questions.length}
+							disabled={answeredCount !== questions.length || submitting}
 							className="flex-1"
 						>
-							Nộp bài
+							{submitting ? 'Đang nộp...' : 'Nộp bài'}
 						</Button>
 					)}
 				</div>

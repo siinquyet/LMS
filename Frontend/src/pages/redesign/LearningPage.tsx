@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Play,
   ChevronDown,
@@ -23,7 +23,7 @@ import {
   getMyEnrollments,
   getUserProgress,
   updateProgress,
-  submitQuiz,
+  getCourseQuizScores,
 } from "../../api";
 import {
   Avatar,
@@ -31,7 +31,8 @@ import {
   Button,
   Card,
   Progress,
-  YouTubePlayer,
+  VideoPlayer,
+  DiscussionSection,
 } from "../../components/common";
 import { useAuth } from "../../contexts/AuthContext";
 import Footer from "../../components/layout/Footer";
@@ -51,7 +52,8 @@ interface Chapter {
 }
 
 const LearningPageRedesign = () => {
-  const { id: courseId, lessonId } = useParams();
+  const { id, courseId: courseIdFromRoute, lessonId } = useParams();
+  const courseId = courseIdFromRoute || id;
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -61,37 +63,117 @@ const LearningPageRedesign = () => {
   const [completedLessons, setCompletedLessons] = useState<Set<number>>(new Set());
   const [isPlaying, setIsPlaying] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [activeTab, setActiveTab] = useState<"overview" | "resources" | "discussion">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "resources" | "discussion" | "notes">("overview");
   const [expandedChapters, setExpandedChapters] = useState<Set<number>>(new Set());
   const [quizAnswers, setQuizAnswers] = useState<number[]>([]);
   const [showQuizResult, setShowQuizResult] = useState(false);
   const [quizScore, setQuizScore] = useState<{ correct: number; total: number } | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  
+  // Quiz scores
+  const [quizScores, setQuizScores] = useState<Map<number, { diem: number; trang_thai: string; lan_lam_cuoi_id: number | null }>>(new Map());
+  
+  // Notes feature
+  const [notes, setNotes] = useState<Array<{id: number; timestamp: number; content: string; createdAt: string}>>([]);
+  const [newNote, setNewNote] = useState("");
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const maxProgressRef = useRef(0); // Track max progress for completion
 
   useEffect(() => {
     const fetchData = async () => {
+      if (!courseId || isNaN(Number(courseId))) {
+        setErrorMessage("ID khóa học không hợp lệ");
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
+        setErrorMessage(null);
+        
         const courseData = await getCourse(Number(courseId));
+        if (!courseData.course) {
+          setErrorMessage("Không tìm thấy khóa học");
+          setLoading(false);
+          return;
+        }
+        
         setRealCourse(courseData.course);
 
-        // Get enrolled lessons with progress
-        const progressData = await getUserProgress(Number(courseId));
-        if (progressData.progress) {
-          const completed = new Set(
-            progressData.progress
-              .filter((p: any) => p.da_hoan_thanh)
-              .map((p: any) => p.bai_hoc_id)
-          );
-          setCompletedLessons(completed);
+        // Local variable to track completed lessons (sync, unlike React state)
+        let completedSet = new Set<number>();
+
+        // Check enrollment first
+        if (user) {
+          try {
+            const enrollmentCheck = await getMyEnrollments();
+            const isEnrolled = enrollmentCheck.enrollments?.some(
+              (e: any) => e.khoa_hoc_id === Number(courseId)
+            );
+            if (!isEnrolled) {
+              setErrorMessage("Bạn chưa đăng ký khóa học này");
+              setLoading(false);
+              return;
+            }
+
+            // Get enrolled lessons with progress
+            try {
+              const progressData = await getUserProgress(user.id, Number(courseId));
+              if (progressData.progress) {
+                const completed = new Set<number>(
+                  progressData.progress
+                    .filter((p: any) => p.da_hoan_thanh)
+                    .map((p: any) => p.bai_hoc_id)
+                );
+                setCompletedLessons(completed);
+                completedSet = completed; // Update local variable for sync use below
+              }
+            } catch (progressError) {
+              console.warn("Could not fetch progress:", progressError);
+            }
+
+            // Fetch quiz scores
+            try {
+              const scoresData = await getCourseQuizScores(Number(courseId), user.id);
+              if (scoresData.quiz_scores) {
+                const scoresMap = new Map<number, { diem: number; trang_thai: string; lan_lam_cuoi_id: number | null }>();
+                for (const s of scoresData.quiz_scores) {
+                  scoresMap.set(s.bai_hoc_id, { diem: s.diem, trang_thai: s.trang_thai, lan_lam_cuoi_id: s.lan_lam_cuoi_id });
+                }
+                setQuizScores(scoresMap);
+              }
+            } catch (scoresError) {
+              console.warn("Could not fetch quiz scores:", scoresError);
+            }
+          } catch (enrollError) {
+            console.warn("Could not check enrollment:", enrollError);
+          }
         }
 
-        // Get current lesson
-        if (lessonId) {
+        // Get current lesson - only if not already set (avoid infinite loop)
+        if (lessonId && !isNaN(Number(lessonId)) && !realLesson) {
           const lessonData = await getLesson(Number(lessonId));
           setRealLesson(lessonData.lesson);
-        } else if (courseData.course.chuong_hoc?.[0]?.bai_hoc?.[0]) {
-          const firstLesson = courseData.course.chuong_hoc[0].bai_hoc[0];
-          navigate(`/learn/${courseId}/${firstLesson.id}`, { replace: true });
+        } else if (!lessonId || lessonId === 'undefined') {
+          // No lessonId - find first incomplete lesson or first lesson
+          const allLessons: any[] = [];
+          for (const chapter of courseData.course.chuong_hoc || []) {
+            for (const lesson of chapter.bai_hoc || []) {
+              allLessons.push(lesson);
+            }
+          }
+          
+          // Use local variable (not state) since React state updates are async
+          let targetLesson = allLessons.find((l: any) => !completedSet.has(l.id));
+          
+          // If all completed, use first lesson
+          if (!targetLesson && allLessons.length > 0) {
+            targetLesson = allLessons[0];
+          }
+          
+          if (targetLesson) {
+            navigate(`/learn/${courseId}/${targetLesson.id}`, { replace: true });
+          }
         }
 
         // Expand first chapter by default
@@ -100,13 +182,53 @@ const LearningPageRedesign = () => {
         }
       } catch (error) {
         console.error("Error fetching course:", error);
+        setErrorMessage("Đã xảy ra lỗi khi tải khóa học");
       } finally {
         setLoading(false);
       }
     };
 
-    if (courseId) fetchData();
-  }, [courseId, lessonId]);
+    fetchData();
+  }, [courseId]); // Only run when courseId changes, not when lessonId changes via navigation
+
+  // Separate effect for loading lesson when lessonId changes
+  useEffect(() => {
+    const loadLesson = async () => {
+      // Need both course and lesson id to load
+      if (!lessonId || isNaN(Number(lessonId))) return;
+      
+      // Try to get lesson from course data first (faster)
+      let lessonFromCourse: any = null;
+      if (realCourse?.chuong_hoc) {
+        for (const ch of realCourse.chuong_hoc) {
+          const found = ch.bai_hoc?.find((l: any) => l.id === Number(lessonId));
+          if (found) {
+            lessonFromCourse = found;
+            break;
+          }
+        }
+      }
+      
+      if (lessonFromCourse) {
+        setRealLesson(lessonFromCourse);
+        return;
+      }
+      
+      // Fallback to API call
+      if (!realCourse) return;
+      
+      try {
+        const lessonData = await getLesson(Number(lessonId));
+        if (lessonData?.lesson) {
+          setRealLesson(lessonData.lesson);
+        }
+      } catch (error) {
+        console.error("Error loading lesson:", error);
+      }
+    };
+
+    loadLesson();
+  }, [lessonId, realCourse]); // Run when lessonId changes
 
   const toggleChapter = (chapterId: number) => {
     setExpandedChapters((prev) => {
@@ -118,9 +240,9 @@ const LearningPageRedesign = () => {
   };
 
   const handleCompleteLesson = async () => {
-    if (!lessonId || !courseId) return;
+    if (!lessonId || !courseId || !user) return;
     try {
-      await updateProgress(Number(lessonId), true);
+      await updateProgress(user.id, Number(lessonId), true);
       setCompletedLessons((prev) => new Set(prev).add(Number(lessonId)));
     } catch (error) {
       console.error("Error updating progress:", error);
@@ -161,8 +283,17 @@ const LearningPageRedesign = () => {
     return (
       <div className="min-h-screen bg-[#F8F6F3] p-8">
         <Card className="p-8 text-center border-3 border-[#1C293C]">
-          <p className="text-red-500 mb-4">Không tìm thấy khóa học</p>
-          <Button onClick={() => navigate("/my-courses")}>Quay lại</Button>
+          <p className="text-red-500 mb-4 text-lg font-medium">
+            {errorMessage || "Đã xảy ra lỗi"}
+          </p>
+          <div className="flex gap-3 justify-center">
+            <Button onClick={() => navigate("/my-courses")}>
+              Khóa học của tôi
+            </Button>
+            <Button variant="outline" onClick={() => navigate("/store")}>
+              Đăng ký khóa học
+            </Button>
+          </div>
         </Card>
       </div>
     );
@@ -276,14 +407,14 @@ const LearningPageRedesign = () => {
                   </button>
 
                   {expandedChapters.has(chapter.id) && (
-                    <div className="mt-1 ml-2 space-y-1">
-                      {chapter.bai_hoc?.map((lesson: any) => {
+                    <div className="mt-1 ml-2 space-y-1">                          {chapter.bai_hoc?.map((lesson: any) => {
                         const isCompleted = completedLessons.has(lesson.id);
                         const isCurrent = lesson.id === Number(lessonId);
+                        const quizScore = quizScores.get(lesson.id);
                         return (
                           <Link
                             key={lesson.id}
-                            to={`/learn/${courseId}/${lesson.id}`}
+                            to={lesson.loai === 'quiz' ? `/quiz/${courseId}/${lesson.id}/do` : `/learn/${courseId}/${lesson.id}`}
                             className={`w-full p-3 flex items-center gap-3 rounded-[8px] text-left transition-colors ${
                               isCurrent
                                 ? "bg-[#49B6E5]/10 border-2 border-[#49B6E5]"
@@ -301,10 +432,19 @@ const LearningPageRedesign = () => {
                               >
                                 {lesson.tieu_de}
                               </p>
-                              <p className="text-xs text-gray-400 flex items-center gap-1">
-                                <Clock className="w-3 h-3" />
-                                {lesson.thoi_luong || lesson.loai}
-                              </p>
+                              <div className="flex items-center gap-2">
+                                <p className="text-xs text-gray-400 flex items-center gap-1 shrink-0">
+                                  <Clock className="w-3 h-3" />
+                                  {lesson.thoi_luong || lesson.loai}
+                                </p>
+                                {lesson.loai === 'quiz' && quizScore && (
+                                  <span className={`text-xs font-bold ${
+                                    quizScore.diem >= 5 ? "text-green-600" : quizScore.diem >= 3 ? "text-yellow-600" : "text-red-600"
+                                  }`}>
+                                    {quizScore.diem}/10
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </Link>
                         );
@@ -337,26 +477,69 @@ const LearningPageRedesign = () => {
                   <div className="mb-6">
                     {realLesson.video_url ? (
                       <div className="aspect-video bg-black rounded-[12px] overflow-hidden shadow-[6px_6px_0px_#1C293C] border-3 border-[#1C293C]">
-                        <YouTubePlayer
+                        <VideoPlayer
+                          ref={videoRef}
                           videoUrl={realLesson.video_url}
                           onPlay={() => setIsPlaying(true)}
                           onPause={() => setIsPlaying(false)}
+                          onComplete={handleCompleteLesson}
                         />
                       </div>
                     ) : realLesson.loai === "quiz" ? (
                       <Card className="p-8 text-center border-3 border-[#1C293C] shadow-[6px_6px_0px_#E5E1DC]">
-                        <HelpCircle className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
+                        <div className="flex items-center justify-center gap-4 mb-4">
+                          <HelpCircle className="w-16 h-16 text-yellow-500" />
+                          {(() => {
+                            const qs = quizScores.get(realLesson.id);
+                            if (qs) {
+                              return (
+                                <div className={`px-4 py-2 rounded-[12px] ${
+                                  qs.diem >= 5 ? "bg-green-100 text-green-700" : qs.diem >= 3 ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-700"
+                                }`}>
+                                  <p className="text-xs font-medium">Điểm gần nhất</p>
+                                  <p className="text-2xl font-bold">{qs.diem}/10</p>
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
+                        </div>
                         <h3 className="font-['Inter', sans-serif] text-xl font-bold text-[#1C293C] mb-2">
                           Quiz: {realLesson.tieu_de}
                         </h3>
                         <p className="text-gray-500 mb-4">
                           Kiểm tra kiến thức của bạn
                         </p>
-                        <Link to={`/quiz/${courseId}/${realLesson.id}/do`}>
-                          <Button variant="primary" size="lg">
-                            Làm bài quiz
-                          </Button>
-                        </Link>
+                        <div className="flex items-center justify-center gap-3">
+                          {(() => {
+                            const qs = quizScores.get(realLesson.id);
+                            if (qs) {
+                              return (
+                                <div className="flex items-center justify-center gap-3">
+                                  <Link to={`/quiz/${courseId}/${realLesson.id}/do`}>
+                                    <Button variant="primary" size="lg">
+                                      Làm lại
+                                    </Button>
+                                  </Link>
+                                  {qs.lan_lam_cuoi_id && (
+                                    <Link to={`/quiz/${courseId}/${realLesson.id}/review?attemptId=${qs.lan_lam_cuoi_id}`}>
+                                      <Button variant="outline" size="lg">
+                                        Xem lại
+                                      </Button>
+                                    </Link>
+                                  )}
+                                </div>
+                              );
+                            }
+                            return (
+                              <Link to={`/quiz/${courseId}/${realLesson.id}/do`}>
+                                <Button variant="primary" size="lg">
+                                  Làm bài quiz
+                                </Button>
+                              </Link>
+                            );
+                          })()}
+                        </div>
                       </Card>
                     ) : (
                       <Card className="p-8 border-3 border-[#1C293C] shadow-[6px_6px_0px_#E5E1DC]">
@@ -395,10 +578,11 @@ const LearningPageRedesign = () => {
                   </div>
 
                   {/* Tab Navigation */}
-                  <div className="flex gap-2 mb-4">
+                  <div className="flex gap-2 mb-4 flex-wrap">
                     {[
                       { key: "overview", label: "Tổng quan", icon: BookOpen },
                       { key: "resources", label: "Tài liệu", icon: FileText },
+                      { key: "notes", label: "Ghi chú", icon: FileText },
                       { key: "discussion", label: "Thảo luận", icon: MessageSquare },
                     ].map((tab) => {
                       const Icon = tab.icon;
@@ -436,20 +620,149 @@ const LearningPageRedesign = () => {
                       </div>
                     )}
                     {activeTab === "resources" && (
-                      <div className="text-center py-8">
-                        <FileText className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                        <p className="text-gray-500 font-['Inter', sans-serif]">
-                          Chưa có tài liệu
-                        </p>
+                      <div>
+                        <h3 className="font-['Inter', sans-serif] text-lg font-bold text-[#1C293C] mb-4">
+                          Tài liệu bài học
+                        </h3>
+                        <div className="space-y-3">
+                          <a
+                            href="/uploads/documents/du-an-tlhk.docx"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-3 p-4 bg-gray-50 border-2 border-gray-200 rounded-[8px] hover:border-[#49B6E5] transition-colors group"
+                          >
+                            <div className="w-10 h-10 rounded-[8px] bg-[#1C293C] flex items-center justify-center shrink-0">
+                              <FileText className="w-5 h-5 text-white" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-['Inter', sans-serif] text-sm font-bold text-[#1C293C] group-hover:text-[#49B6E5] transition-colors truncate">
+                                Dự án TLHKT
+                              </p>
+                              <p className="font-['Inter', sans-serif] text-xs text-gray-500">
+                                Tài liệu Microsoft Word (.docx)
+                              </p>
+                            </div>
+                            <svg
+                              className="w-5 h-5 text-gray-400 group-hover:text-[#49B6E5] transition-colors shrink-0"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                              />
+                            </svg>
+                          </a>
+                        </div>
                       </div>
                     )}
-                    {activeTab === "discussion" && (
-                      <div className="text-center py-8">
-                        <MessageSquare className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                        <p className="text-gray-500 font-['Inter', sans-serif] mb-3">
-                          Chưa có thảo luận
-                        </p>
-                        <Button variant="outline">Bắt đầu thảo luận</Button>
+                    {activeTab === "discussion" && realLesson && (
+                      <DiscussionSection lessonId={realLesson.id} />
+                    )}
+                    {activeTab === "notes" && (
+                      <div>
+                        <div className="mb-4">
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={newNote}
+                              onChange={(e) => setNewNote(e.target.value)}
+                              placeholder="Nhập ghi chú..."
+                              className="flex-1 px-4 py-2 border-2 border-[#1C293C] rounded-[8px] font-['Inter', sans-serif] text-sm focus:border-[#49B6E5] outline-none"
+                              onKeyPress={(e) => {
+                                if (e.key === 'Enter' && newNote.trim()) {
+                                  const currentTime = videoRef?.current?.currentTime || 0;
+                                  const minutes = Math.floor(currentTime / 60);
+                                  const seconds = Math.floor(currentTime % 60);
+                                  const timestamp = currentTime;
+                                  
+                                  const note = {
+                                    id: Date.now(),
+                                    timestamp,
+                                    content: newNote.trim(),
+                                    createdAt: new Date().toISOString()
+                                  };
+                                  setNotes([...notes, note]);
+                                  setNewNote("");
+                                }
+                              }}
+                            />
+                            <Button 
+                              variant="primary"
+                              onClick={() => {
+                                if (newNote.trim()) {
+                                  const currentTime = videoRef?.current?.currentTime || 0;
+                                  const note = {
+                                    id: Date.now(),
+                                    timestamp: currentTime,
+                                    content: newNote.trim(),
+                                    createdAt: new Date().toISOString()
+                                  };
+                                  setNotes([...notes, note]);
+                                  setNewNote("");
+                                }
+                              }}
+                            >
+                              Thêm
+                            </Button>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-2 font-['Inter', sans-serif]">
+                            Nhấn Enter hoặc nút Thêm để lưu ghi chú tại thời điểm hiện tại
+                          </p>
+                        </div>
+                        
+                        {notes.length === 0 ? (
+                          <div className="text-center py-8">
+                            <FileText className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                            <p className="text-gray-500 font-['Inter', sans-serif]">
+                              Chưa có ghi chú. Thêm ghi chú để đánh dấu thời điểm quan trọng!
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                            {notes
+                              .sort((a, b) => a.timestamp - b.timestamp)
+                              .map((note) => {
+                                const minutes = Math.floor(note.timestamp / 60);
+                                const seconds = Math.floor(note.timestamp % 60);
+                                const timeStr = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                                
+                                return (
+                                  <div 
+                                    key={note.id}
+                                    className="p-3 bg-gray-50 rounded-[8px] border-2 border-gray-200 hover:border-[#49B6E5] cursor-pointer transition-colors"
+                                    onClick={() => {
+                                      if (videoRef?.current) {
+                                        videoRef.current.currentTime = note.timestamp;
+                                        videoRef.current.play();
+                                      }
+                                    }}
+                                  >
+                                    <div className="flex items-center justify-between mb-2">
+                                      <span className="text-[#49B6E5] font-['Inter', sans-serif] text-sm font-bold">
+                                        ⏱️ {timeStr}
+                                      </span>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setNotes(notes.filter(n => n.id !== note.id));
+                                        }}
+                                        className="text-red-500 hover:text-red-700 text-xs"
+                                      >
+                                        Xóa
+                                      </button>
+                                    </div>
+                                    <p className="text-gray-700 font-['Inter', sans-serif] text-sm">
+                                      {note.content}
+                                    </p>
+                                  </div>
+                                );
+                              })}
+                          </div>
+                        )}
                       </div>
                     )}
                   </Card>

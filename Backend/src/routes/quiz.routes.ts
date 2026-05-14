@@ -70,6 +70,58 @@ router.patch('/:quizId/questions/:questionId', asyncHandler(async (req, res, nex
   res.json({ cau_hoi: { id: question.id, quiz_id: question.quizId, cau_hoi: question.question, lua_chon: question.options, dap_an_dung: question.correctAnswer } });
 }));
 
+// PUT /:id/questions - Bulk replace all questions (delete all + create new)
+router.put('/:id/questions', authenticate, asyncHandler(async (req, res, next) => {
+  const quizId = Number(req.params.id);
+  const { questions } = req.body as { questions?: Array<{ cau_hoi: string; lua_chon: string[]; dap_an_dung: number }> };
+
+  if (!quizId) { next(new AppError('Invalid quiz id', 400)); return; }
+
+  try {
+    // Delete all existing questions
+    await prisma.quizQuestion.deleteMany({ where: { quizId } });
+
+    // Create new questions
+    const qs = Array.isArray(questions) ? questions : [];
+    if (qs.length > 0) {
+      await prisma.quizQuestion.createMany({
+        data: qs.map((q) => ({
+          quizId,
+          question: q.cau_hoi.trim(),
+          options: q.lua_chon,
+          correctAnswer: q.lua_chon[q.dap_an_dung] || q.lua_chon[0],
+        })),
+      });
+    }
+
+    // Update question count on quiz
+    await prisma.quiz.update({
+      where: { id: quizId },
+      data: { questionCount: qs.length },
+    });
+
+    // Return updated questions
+    const updatedQuestions = await prisma.quizQuestion.findMany({
+      where: { quizId },
+      orderBy: { id: 'asc' },
+    });
+
+    res.json({
+      questions: updatedQuestions.map((q) => ({
+        id: q.id,
+        quiz_id: q.quizId,
+        cau_hoi: q.question,
+        lua_chon: q.options,
+        dap_an_dung: q.correctAnswer,
+      })),
+      so_cau_hoi: qs.length,
+    });
+  } catch (error) {
+    console.error('Failed to replace questions:', error);
+    next(new AppError('Failed to update questions', 500));
+  }
+}));
+
 router.delete('/:quizId/questions/:questionId', asyncHandler(async (req, res, next) => {
   const questionId = Number(req.params.questionId);
   const quizId = Number(req.params.quizId);
@@ -81,72 +133,8 @@ router.delete('/:quizId/questions/:questionId', asyncHandler(async (req, res, ne
   res.status(204).send();
 }));
 
-router.post('/:id/attempts', authenticate, asyncHandler(async (req, res, next) => {
-  const quizId = Number(req.params.id);
-  const { answers } = req.body as { answers?: Array<{ questionId: number; answer: string }> };
-  const userId = req.user!.userId;
-
-  if (!quizId || !Number.isInteger(userId) || !Array.isArray(answers)) { next(new AppError('Invalid quiz attempt payload', 400)); return; }
-
-  const quiz = await prisma.quiz.findUnique({
-    where: { id: quizId },
-    include: {
-      lesson: {
-        include: {
-          chapter: {
-            include: {
-              lessons: { orderBy: { id: 'asc' }, select: { id: true } },
-              course: { select: { id: true } },
-            },
-          },
-        },
-      },
-    },
-  });
-
-  if (!quiz) { res.status(404).json({ error: 'Quiz not found' }); return; }
-
-  // Phase 3: Quiz prerequisite - check previous lesson completed
-  const lessonsInChapter = quiz.lesson.chapter.lessons as { id: number }[];
-  const currentLessonIndex = lessonsInChapter.findIndex((l) => l.id === quiz.lessonId);
-
-  if (currentLessonIndex > 0) {
-    const previousLessonId = lessonsInChapter[currentLessonIndex - 1].id;
-    const previousProgress = await prisma.progress.findUnique({
-      where: { userId_lessonId: { userId, lessonId: previousLessonId } },
-    });
-
-    if (!previousProgress?.completed) {
-      res.status(403).json({
-        error: 'Bạn cần hoàn thành bài học trước để làm bài kiểm tra này',
-        prerequisite: { lessonId: previousLessonId, message: 'Hoàn thành bài học liền trước' },
-      });
-      return;
-    }
-  }
-
-  const questions = await prisma.quizQuestion.findMany({ where: { quizId }, select: { id: true, correctAnswer: true } });
-  if (questions.length === 0) { res.status(404).json({ error: 'Quiz questions not found' }); return; }
-
-  const answerMap = new Map(answers.map((a) => [a.questionId, a.answer]));
-  const correctCount = questions.filter((q) => answerMap.get(q.id) === q.correctAnswer).length;
-  const score = Number(((correctCount / questions.length) * 10).toFixed(2));
-
-  const attempt = await prisma.quizAttempt.create({
-    data: { quizId, userId, score, takenAt: new Date() },
-  });
-
-  const bestAttempt = await prisma.quizAttempt.findFirst({
-    where: { quizId, userId },
-    orderBy: { score: 'desc' },
-  });
-
-  res.status(201).json({
-    attempt: { id: attempt.id, quiz_id: attempt.quizId, nguoi_dung_id: attempt.userId, diem: attempt.score, ngay_lam: attempt.takenAt.toISOString() },
-    result: { correct: correctCount, total: questions.length, score },
-    best_score: bestAttempt?.score ?? score,
-  });
-}));
+// POST /:id/attempts is handled in server.ts (includes prerequisite check)
+// This route is intentionally omitted here to avoid duplication.
 
 router.get('/:id/attempts', asyncHandler(async (req, res) => {
   const quizId = Number(req.params.id);

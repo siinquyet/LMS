@@ -8,7 +8,6 @@ export const courseSchema = z.object({
   muc_do: z.string().nullable(),
   danh_muc_id: z.number(),
   thoi_luong: z.string().nullable(),
-  thumbnail: z.string().nullable(),
   trang_thai: z.enum(["draft", "pending", "approved", "published", "rejected", "completed"]),
   so_luong_da_dang_ky: z.number(),
   xep_hang: z.number().nullable(),

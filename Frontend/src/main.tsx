@@ -5,16 +5,19 @@ import App from "./app";
 import { AuthProvider } from "./contexts/AuthContext";
 import { CartProvider } from "./contexts/CartContext";
 import { MyCoursesProvider } from "./contexts/MyCoursesContext";
+import ErrorBoundary from "./components/common/ErrorBoundary";
 
 const root = createRoot(document.getElementById("root") as HTMLElement);
 root.render(
 	<React.StrictMode>
-		<AuthProvider>
-			<CartProvider>
-				<MyCoursesProvider>
-					<App />
-				</MyCoursesProvider>
-			</CartProvider>
-		</AuthProvider>
+		<ErrorBoundary>
+			<AuthProvider>
+				<CartProvider>
+					<MyCoursesProvider>
+						<App />
+					</MyCoursesProvider>
+				</CartProvider>
+			</AuthProvider>
+		</ErrorBoundary>
 	</React.StrictMode>,
 );

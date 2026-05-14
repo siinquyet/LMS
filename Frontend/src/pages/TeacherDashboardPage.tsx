@@ -124,7 +124,7 @@ export const TeacherDashboardPage: FC = () => {
 								<Card hoverable className="p-4">
 									<img
 										src={
-											course.thumbnail ||
+											course.hinh_anh ||
 											"https://picsum.photos/seed/course/300/200"
 										}
 										alt={course.tieu_de}
@@ -137,15 +137,25 @@ export const TeacherDashboardPage: FC = () => {
 										<span className="text-sm text-gray-500">
 											{course.so_luong_da_dang_ky || 0} học viên
 										</span>
-										<Badge
-											variant={
-												course.trang_thai === "approved" ? "success" : "warning"
-											}
-										>
-											{course.trang_thai === "approved"
-												? "Đã duyệt"
-												: "Chờ duyệt"}
-										</Badge>
+								<Badge
+										variant={
+											course.trang_thai === "approved" || course.trang_thai === "completed" || course.trang_thai === "published"
+												? "success"
+												: course.trang_thai === "draft" || course.trang_thai === "rejected"
+													? "danger"
+													: "warning"
+										}
+									>
+										{course.trang_thai === "approved" || course.trang_thai === "published"
+											? "Đã duyệt"
+											: course.trang_thai === "completed"
+											? "Hoàn thành"
+											: course.trang_thai === "draft"
+											? "Bản nháp"
+											: course.trang_thai === "rejected"
+											? "Từ chối"
+											: "Chờ duyệt"}
+									</Badge>
 									</div>
 								</Card>
 							</Link>

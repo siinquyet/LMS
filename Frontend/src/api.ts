@@ -1,5 +1,7 @@
 const API_BASE = "";
 
+import { axiosClient } from "./lib/axiosClient";
+
 const getHeaders = (includeAuth = true) => {
 	const headers: Record<string, string> = {
 		"Content-Type": "application/json",
@@ -687,12 +689,78 @@ export const gradeQuizAttempt = async (
 	return handleResponse(res);
 };
 
+// Quizzes - Bulk replace questions for a quiz
+export const replaceQuizQuestions = async (
+  quizId: number,
+  questions: Array<{
+    cau_hoi: string;
+    lua_chon: string[];
+    dap_an_dung: number;
+  }>,
+) => {
+  const res = await fetch(`${API_BASE}/api/quizzes/${quizId}/questions`, {
+    method: 'PUT',
+    headers: getHeaders(),
+    body: JSON.stringify({ questions }),
+  });
+  return handleResponse(res);
+};
+
+// Quizzes - Create quiz for lesson
+export const createLessonQuiz = async (
+  lessonId: number,
+  data: {
+    tieu_de: string;
+    thoi_gian_lam: number;
+    questions: Array<{
+      cau_hoi: string;
+      lua_chon: string[];
+      dap_an_dung: number;
+    }>;
+  },
+) => {
+  const res = await fetch(`${API_BASE}/api/lessons/${lessonId}/quiz`, {
+    method: "POST",
+    headers: getHeaders(),
+    body: JSON.stringify(data),
+  });
+  return handleResponse(res);
+};
+
 // Assignments
 export const getAssignments = async (userId?: number, courseId?: number) => {
 	const query = new URLSearchParams();
 	if (userId) query.set("userId", String(userId));
 	if (courseId) query.set("courseId", String(courseId));
 	const res = await fetch(`${API_BASE}/api/assignments?${query}`, {
+		headers: getHeaders(),
+	});
+	return handleResponse(res);
+};
+
+export const getSkippedQuizzes = async (userId: number) => {
+	const res = await fetch(`${API_BASE}/api/assignments/skipped-quizzes?userId=${userId}`, {
+		headers: getHeaders(),
+	});
+	return handleResponse(res);
+};
+
+export const getCourseQuizScores = async (courseId: number, userId: number) => {
+	const res = await fetch(`${API_BASE}/api/courses/${courseId}/quiz-scores?userId=${userId}`, {
+		headers: getHeaders(),
+	});
+	return handleResponse(res);
+};
+
+export const getLatestQuizAttempt = async (quizId: number, userId: number) => {
+	const res = await fetch(`${API_BASE}/api/quizzes/${quizId}/attempts/latest?userId=${userId}`, {
+		headers: getHeaders(),
+	});
+	return handleResponse(res);
+};
+
+export const getQuizAttemptReview = async (attemptId: number) => {
+	const res = await fetch(`${API_BASE}/api/quizzes/attempts/${attemptId}/review`, {
 		headers: getHeaders(),
 	});
 	return handleResponse(res);
@@ -1071,4 +1139,64 @@ export const deleteLessonResource = async (resourceId: number) => {
 		headers: getHeaders(),
 	});
 	return handleResponse(res);
+};
+
+export const getCoursesAxios = async (params?: Record<string, unknown>) => {
+	return axiosClient.get('/api/courses', { params }).then(res => res.data);
+};
+
+export const getCourseAxios = async (id: number) => {
+	return axiosClient.get(`/api/courses/${id}`).then(res => res.data);
+};
+
+export const getMyEnrollmentsAxios = async () => {
+	return axiosClient.get('/api/my-enrollments').then(res => res.data);
+};
+
+export const getCartAxios = async () => {
+	return axiosClient.get('/api/cart').then(res => res.data);
+};
+
+export const getCategoriesAxios = async () => {
+	return axiosClient.get('/api/categories').then(res => res.data);
+};
+
+export const getCourseReviewsAxios = async (courseId: number) => {
+	return axiosClient.get(`/api/courses/${courseId}/reviews`).then(res => res.data);
+};
+
+export const addToCartAxios = async (courseId: number) => {
+	return axiosClient.post('/api/cart', { khoa_hoc_id: courseId }).then(res => res.data);
+};
+
+export const checkoutAxios = async () => {
+	return axiosClient.post('/api/checkout').then(res => res.data);
+};
+
+export const getAssignmentsAxios = async (userId?: number, courseId?: number) => {
+	const query = new URLSearchParams();
+	if (userId) query.set("userId", String(userId));
+	if (courseId) query.set("courseId", String(courseId));
+	return axiosClient.get(`/api/assignments?${query}`).then(res => res.data);
+};
+
+export const getAssignmentsByUserAxios = async (userId: number) => {
+	return axiosClient.get('/api/assignments', { params: { userId } }).then(res => res.data);
+};
+
+export const getUserProgressAxios = async (userId: number, courseId?: number) => {
+	const query = courseId ? `?courseId=${courseId}` : "";
+	return axiosClient.get(`/api/users/${userId}/progress${query}`).then(res => res.data);
+};
+
+export const updateProgressAxios = async (
+	nguoi_dung_id: number,
+	bai_hoc_id: number,
+	da_hoan_thanh: boolean,
+) => {
+	return axiosClient.patch('/api/progress', { nguoi_dung_id, bai_hoc_id, da_hoan_thanh }).then(res => res.data);
+};
+
+export const checkEnrollmentAxios = async (courseId: number) => {
+	return axiosClient.get(`/api/enrollments/check/${courseId}`).then(res => res.data);
 };

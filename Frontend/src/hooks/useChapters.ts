@@ -122,11 +122,9 @@ export function useChapters(
 	const addLesson = useCallback(
 		async (chapterId: number, data: Partial<Lesson>) => {
 			if (!data.tieu_de?.trim()) {
-				alert("Vui lòng nhập tên bài học");
-				return;
+				throw new Error("Vui lòng nhập tên bài học");
 			}
 			try {
-				console.log("[DEBUG-addLesson] Calling API with:", { chapterId, data });
 				const { lesson } = await api.createLesson(chapterId, {
 					tieu_de: data.tieu_de.trim(),
 					loai: data.loai || "video",
@@ -134,7 +132,6 @@ export function useChapters(
 					thoi_luong: data.thoi_luong || "",
 					noi_dung: data.noi_dung || "",
 				});
-				console.log("[DEBUG-addLesson] Response:", lesson);
 				if (lesson) {
 					setChapters((prev) =>
 						prev.map((ch) =>
@@ -149,16 +146,12 @@ export function useChapters(
 								: ch,
 						),
 					);
-					alert("Thêm bài học thành công!");
+					return lesson;
 				}
+				throw new Error("Không nhận được dữ liệu bài học từ server");
 			} catch (e: any) {
-				console.error("[DEBUG-addLesson] Error details:", {
-					message: e?.message,
-					status: e?.status,
-					response: e?.response,
-				});
 				const errorMsg = e?.response?.data?.error || e?.message || "Lỗi không xác định";
-				alert("Thêm bài học thất bại: " + errorMsg);
+				throw new Error(errorMsg);
 			}
 		},
 		[setChapters],
@@ -176,9 +169,9 @@ export function useChapters(
 						),
 					})),
 				);
-				alert("Cập nhật bài học thành công!");
-			} catch (e) {
-				alert("Cập nhật thất bại: " + (e as Error).message);
+			} catch (e: any) {
+				const errorMsg = e?.response?.data?.error || e?.message || "Lỗi không xác định";
+				throw new Error(errorMsg);
 			}
 		},
 		[setChapters],

@@ -29,8 +29,7 @@ import { useCart } from "../contexts/CartContext";
 interface Course {
   id: number;
   tieu_de: string;
-  gia: number;
-  thumbnail?: string;
+  gia: number;	hinh_anh?: string;
   muc_do?: string;
   xep_hang?: number;
   so_luong_da_dang_ky: number;
@@ -87,7 +86,7 @@ export const StorePage: React.FC = () => {
     try {
       const [coursesRes, categoriesRes] = await Promise.all([
         api.getCourses({
-          status: "completed",
+          status: "approved",
           search: search || undefined,
           categoryId: category ? Number(category) : undefined,
           minPrice: priceMin ? Number(priceMin) : undefined,
@@ -128,7 +127,7 @@ export const StorePage: React.FC = () => {
         addItem({
           id: course.id,
           title: course.tieu_de,
-          thumbnail: course.thumbnail || "",
+          hinhAnh: course.hinh_anh || "",
           instructor: course.giang_vien
             ? `${course.giang_vien.ho} ${course.giang_vien.ten}`
             : "Giảng viên",
@@ -291,7 +290,7 @@ export const StorePage: React.FC = () => {
                     <div className="relative">
                       <LazyImage
                         src={
-                          course.thumbnail ||
+                          course.hinh_anh ||
                           "https://picsum.photos/seed/course/300/200"
                         }
                         alt={course.tieu_de}

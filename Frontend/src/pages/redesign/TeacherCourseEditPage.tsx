@@ -30,8 +30,10 @@ import {
   VideoUpload,
   QuizBuilder,
   type QuizFormData,
+  type QuizQuestion,
 } from "../../components/common";
 import { useTeacherCourseEditor } from "../../hooks/useTeacherCourseEditor";
+import * as api from "../../api";
 
 const TeacherCourseEditPageRedesign = () => {
   const { id: paramsId } = useParams<{ id: string }>();
@@ -73,14 +75,6 @@ const TeacherCourseEditPageRedesign = () => {
     "basic" | "content" | "pricing" | "settings"
   >("basic");
 
-  const [chapterTabs, setChapterTabs] = useState<Record<number, "video" | "exercise">>({});
-
-  const getActiveTab = (chapterId: number) => chapterTabs[chapterId] || "video";
-
-  const setActiveTab = (chapterId: number, tab: "video" | "exercise") => {
-    setChapterTabs((prev) => ({ ...prev, [chapterId]: tab }));
-  };
-
   const sections = [
     { key: "basic", label: "Thông tin cơ bản", icon: BookOpen },
     { key: "content", label: "Nội dung", icon: LayoutGrid },
@@ -92,12 +86,8 @@ const TeacherCourseEditPageRedesign = () => {
     switch (type) {
       case "video":
         return <Video className="w-4 h-4" />;
-      case "document":
-        return <FileText className="w-4 h-4" />;
       case "quiz":
         return <HelpCircle className="w-4 h-4" />;
-      case "exercise":
-        return <FileQuestion className="w-4 h-4" />;
       default:
         return <FileText className="w-4 h-4" />;
     }
@@ -107,6 +97,9 @@ const TeacherCourseEditPageRedesign = () => {
     (sum, ch) => sum + (ch.bai_hoc?.length || 0),
     0,
   );
+
+  const [editingChapterId, setEditingChapterId] = useState<number | null>(null);
+  const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
 
   // New Course Form
   if (isNewCourse) {
@@ -132,7 +125,7 @@ const TeacherCourseEditPageRedesign = () => {
                   Tên khóa học *
                 </label>
                 <Input
-                  value={editor.course.tieu_de || ""}
+                  value={editor.course?.tieu_de || ""}
                   onChange={(value) => editor.courseField("tieu_de", value)}
                   className="border-2 border-[#1C293C] rounded-[12px] p-4"
                   placeholder="VD: React & Next.js Full Course"
@@ -144,7 +137,7 @@ const TeacherCourseEditPageRedesign = () => {
                   Mô tả *
                 </label>
                 <textarea
-                  value={editor.course.mo_ta || ""}
+                  value={editor.course?.mo_ta || ""}
                   onChange={(e) => editor.courseField("mo_ta", e.target.value)}
                   className="w-full p-4 border-2 border-[#1C293C] rounded-[12px] font-['Inter', sans-serif] min-h-[150px]"
                   placeholder="Mô tả chi tiết về khóa học..."
@@ -157,7 +150,7 @@ const TeacherCourseEditPageRedesign = () => {
                     Danh mục
                   </label>
                   <select
-                    value={editor.course.danh_muc_id || ""}
+                    value={editor.course?.danh_muc_id || ""}
                     onChange={(e) =>
                       editor.courseField("danh_muc_id", Number(e.target.value))
                     }
@@ -176,7 +169,7 @@ const TeacherCourseEditPageRedesign = () => {
                     Cấp độ
                   </label>
                   <select
-                    value={editor.course.muc_do || ""}
+                    value={editor.course?.muc_do || ""}
                     onChange={(e) => editor.courseField("muc_do", e.target.value)}
                     className="w-full p-4 border-2 border-[#1C293C] rounded-[12px] font-['Inter', sans-serif]"
                   >
@@ -192,7 +185,16 @@ const TeacherCourseEditPageRedesign = () => {
                 <Button
                   variant="primary"
                   size="lg"
-                  onClick={editor.handleSaveCourse}
+                  onClick={async () => {
+                    try {
+                      const result: any = await editor.handleSaveCourse();
+                      if (result?.course?.id) {
+                        navigate(`/teacher/courses/${result.course.id}`, { replace: true });
+                      }
+                    } catch (e) {
+                      // Error already handled in saveCourse
+                    }
+                  }}
                   disabled={editor.saving}
                 >
                   <Save className="w-5 h-5 mr-2" />
@@ -334,13 +336,97 @@ const TeacherCourseEditPageRedesign = () => {
 
               <Card className="p-6 border-3 border-[#1C293C] shadow-[4px_4px_0px_#E5E1DC]">
                 <h3 className="font-['Inter', sans-serif] text-lg font-bold text-[#1C293C] mb-4">
-                  Ảnh thumbnail
+                  Ảnh khóa học
                 </h3>
                 <ImageUpload
-                  value={editor.course.thumbnail || ""}
-                  onChange={(url) => editor.courseField("thumbnail", url)}
-                  placeholder="Tải ảnh thumbnail"
+                  value={editor.course.hinh_anh || ""}
+                  onChange={(url) => editor.courseField("hinh_anh", url)}
+                  placeholder="Tải ảnh khóa học"
                 />
+              </Card>
+
+              <Card className="p-6 border-3 border-[#1C293C] shadow-[4px_4px_0px_#E5E1DC]">
+                <h3 className="font-['Inter', sans-serif] text-lg font-bold text-[#1C293C] mb-4">
+                  Kiến thức đạt được
+                </h3>
+                <p className="text-sm text-gray-500 mb-3">Học viên sẽ học được gì từ khóa học này?</p>
+                <div className="space-y-2">
+                  {(editor.course.what_you_learn || []).map((item: string, idx: number) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <Input
+                        value={item}
+                        onChange={(value) => {
+                          const newList = [...(editor.course.what_you_learn || [])];
+                          newList[idx] = value;
+                          editor.courseField("what_you_learn", newList);
+                        }}
+                        className="border-2 border-[#1C293C] rounded-[8px] flex-1"
+                        placeholder="VD: Xây dựng ứng dụng React từ đầu"
+                      />
+                      <button
+                        onClick={() => {
+                          const newList = (editor.course.what_you_learn || []).filter((_: any, i: number) => i !== idx);
+                          editor.courseField("what_you_learn", newList);
+                        }}
+                        className="p-2 text-red-500 hover:bg-red-50 rounded"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    onClick={() => {
+                      const newList = [...(editor.course.what_you_learn || []), ""];
+                      editor.courseField("what_you_learn", newList);
+                    }}
+                    className="w-full p-3 text-blue-600 hover:bg-blue-50 rounded-[8px] border-2 border-dashed border-blue-300 font-['Inter', sans-serif] text-sm flex items-center justify-center"
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    Thêm mục tiêu
+                  </button>
+                </div>
+              </Card>
+
+              <Card className="p-6 border-3 border-[#1C293C] shadow-[4px_4px_0px_#E5E1DC]">
+                <h3 className="font-['Inter', sans-serif] text-lg font-bold text-[#1C293C] mb-4">
+                  Yêu cầu đầu vào
+                </h3>
+                <p className="text-sm text-gray-500 mb-3">Học viên cần có kiến thức gì trước khi tham gia?</p>
+                <div className="space-y-2">
+                  {(editor.course.requirements || []).map((item: string, idx: number) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <Input
+                        value={item}
+                        onChange={(value) => {
+                          const newList = [...(editor.course.requirements || [])];
+                          newList[idx] = value;
+                          editor.courseField("requirements", newList);
+                        }}
+                        className="border-2 border-[#1C293C] rounded-[8px] flex-1"
+                        placeholder="VD: Biết cơ bản HTML, CSS, JavaScript"
+                      />
+                      <button
+                        onClick={() => {
+                          const newList = (editor.course.requirements || []).filter((_: any, i: number) => i !== idx);
+                          editor.courseField("requirements", newList);
+                        }}
+                        className="p-2 text-red-500 hover:bg-red-50 rounded"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    onClick={() => {
+                      const newList = [...(editor.course.requirements || []), ""];
+                      editor.courseField("requirements", newList);
+                    }}
+                    className="w-full p-3 text-orange-600 hover:bg-orange-50 rounded-[8px] border-2 border-dashed border-orange-300 font-['Inter', sans-serif] text-sm flex items-center justify-center"
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    Thêm yêu cầu
+                  </button>
+                </div>
               </Card>
             </div>
           )}
@@ -359,11 +445,8 @@ const TeacherCourseEditPageRedesign = () => {
                   <Plus className="w-4 h-4 mr-2" />
                   Thêm chương mới
                 </Button>
-              </div>
-
-              {editor.chapters.map((chapter: any, idx: number) => {
-                const videoLessons = (chapter.bai_hoc || []).filter((l: any) => l.loai === "video");
-                const exerciseLessons = (chapter.bai_hoc || []).filter((l: any) => l.loai === "exercise");
+              </div>                {editor.chapters.map((chapter: any, idx: number) => {
+                const allLessons = chapter.bai_hoc || [];
                 
                 return (
                   <Card
@@ -380,13 +463,16 @@ const TeacherCourseEditPageRedesign = () => {
                             {chapter.tieu_de}
                           </p>
                           <p className="text-xs text-white/60">
-                            {videoLessons.length} video • {exerciseLessons.length} bài tập
+                            {allLessons.length} bài học
                           </p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => editor.chapterForm.edit(chapter)}
+                          onClick={() => {
+                            setEditingChapterId(chapter.id);
+                            editor.chapterForm.edit(chapter);
+                          }}
                           className="p-2 hover:bg-white/10 rounded"
                         >
                           <Edit2 className="w-4 h-4" />
@@ -400,124 +486,94 @@ const TeacherCourseEditPageRedesign = () => {
                       </div>
                     </div>
 
-                    {/* Tab Buttons for Video/Exercise */}
-                    <div className="flex border-b-2 border-[#1C293C]">
-                      <button
-                        onClick={() => setActiveTab(chapter.id, "video")}
-                        className={`flex-1 px-4 py-3 font-['Inter', sans-serif] text-sm font-medium border-b-3 transition-colors ${
-                          getActiveTab(chapter.id) === "video"
-                            ? "bg-blue-50 text-blue-600 border-blue-600"
-                            : "bg-gray-50 text-gray-500 hover:bg-gray-100 border-transparent"
-                        }`}
-                      >
-                        <Video className="w-4 h-4 inline mr-2" />
-                        Video ({videoLessons.length})
-                      </button>
-                      <button
-                        onClick={() => setActiveTab(chapter.id, "exercise")}
-                        className={`flex-1 px-4 py-3 font-['Inter', sans-serif] text-sm font-medium border-b-3 transition-colors ${
-                          getActiveTab(chapter.id) === "exercise"
-                            ? "bg-purple-50 text-purple-600 border-purple-600"
-                            : "bg-gray-50 text-gray-500 hover:bg-gray-100 border-transparent"
-                        }`}
-                      >
-                        <FileQuestion className="w-4 h-4 inline mr-2" />
-                        Bài tập ({exerciseLessons.length})
-                      </button>
-                    </div>
-
-                    {/* Content based on active tab */}
-                    <div className="p-4">
-                      {getActiveTab(chapter.id) === "video" ? (
-                        <div className="space-y-2">
-                          {videoLessons.map((lesson: any, lessonIdx: number) => (
-                            <div
-                              key={lesson.id}
-                              className="flex items-center justify-between p-3 bg-blue-50 rounded-[8px] border-2 border-[#1C293C]"
-                            >
-                              <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-full bg-blue-200 text-blue-700 flex items-center justify-center text-xs font-bold">
-                                  {lessonIdx + 1}
-                                </div>
-                                <div>
-                                  <p className="font-['Inter', sans-serif] text-sm font-medium text-[#1C293C]">
-                                    {lesson.tieu_de}
-                                  </p>
-                                  <p className="text-xs text-gray-500 flex items-center gap-1">
-                                    <Clock className="w-3 h-3" />
-                                    {lesson.thoi_luong || "0:00"}
-                                  </p>
-                                </div>
+                    <div className="p-4 space-y-2">
+                      {[...allLessons].sort((a: any, b: any) => (a.thu_tu || 0) - (b.thu_tu || 0)).map((lesson: any, lessonIdx: number) => {
+                        const lessonIcon = lesson.loai === "video" ? "🎬" : lesson.loai === "quiz" ? "📝" : "📄";
+                        const lessonColor = lesson.loai === "video" ? "bg-blue-50 border-blue-300" : lesson.loai === "quiz" ? "bg-purple-50 border-purple-300" : "bg-orange-50 border-orange-300";
+                        const lessonLabel = lesson.loai === "video" ? "Video" : lesson.loai === "quiz" ? "Quiz" : "Tài liệu";
+                        
+                        return (
+                          <div
+                            key={lesson.id}
+                            className={`flex items-center justify-between p-3 rounded-[8px] border-2 ${lessonColor}`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-white text-gray-700 flex items-center justify-center text-xs font-bold">
+                                {lesson.thu_tu || lessonIdx + 1}
                               </div>
-                              <div className="flex items-center gap-2">
-                                <button
-                                  onClick={() => editor.lessonForm.edit(lesson, chapter.id)}
-                                  className="p-2 hover:bg-blue-100 rounded"
-                                >
-                                  <Edit2 className="w-4 h-4 text-blue-600" />
-                                </button>
-                                <button
-                                  onClick={() => editor.handleDeleteLesson(lesson.id, chapter.id)}
-                                  className="p-2 hover:bg-red-50 rounded"
-                                >
-                                  <Trash2 className="w-4 h-4 text-red-500" />
-                                </button>
+                              <div>
+                                <p className="font-['Inter', sans-serif] text-sm font-medium text-[#1C293C]">
+                                  <span className="mr-2">{lessonIcon}</span>
+                                  {lesson.tieu_de}
+                                </p>
+                                <p className="text-xs text-gray-500 flex items-center gap-1">
+                                  {lesson.loai === "video" && <><Clock className="w-3 h-3" /> {lesson.thoi_luong || "0:00"}</>}
+                                  {lesson.loai === "quiz" && <>📝 {lesson.quizzes?.[0]?.so_cau_hoi || 0} câu hỏi</>}
+                                </p>
                               </div>
                             </div>
-                          ))}
-                          <button
-                            onClick={() => editor.lessonForm.openWithChapter(chapter.id, "video")}
-                            className="w-full p-3 text-blue-600 hover:bg-blue-50 rounded-[8px] border-2 border-dashed border-blue-300 font-['Inter', sans-serif] text-sm flex items-center justify-center"
-                          >
-                            <Plus className="w-4 h-4 mr-1" />
-                            Thêm video
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          {exerciseLessons.map((lesson: any, lessonIdx: number) => (
-                            <div
-                              key={lesson.id}
-                              className="flex items-center justify-between p-3 bg-purple-50 rounded-[8px] border-2 border-[#1C293C]"
-                            >
-                              <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-full bg-purple-200 text-purple-700 flex items-center justify-center text-xs font-bold">
-                                  {lessonIdx + 1}
-                                </div>
-                                <div>
-                                  <p className="font-['Inter', sans-serif] text-sm font-medium text-[#1C293C]">
-                                    {lesson.tieu_de}
-                                  </p>
-                                  <p className="text-xs text-gray-500">
-                                    Bài tập
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <button
-                                  onClick={() => editor.lessonForm.edit(lesson, chapter.id)}
-                                  className="p-2 hover:bg-purple-100 rounded"
-                                >
-                                  <Edit2 className="w-4 h-4 text-purple-600" />
-                                </button>
-                                <button
-                                  onClick={() => editor.handleDeleteLesson(lesson.id, chapter.id)}
-                                  className="p-2 hover:bg-red-50 rounded"
-                                >
-                                  <Trash2 className="w-4 h-4 text-red-500" />
-                                </button>
-                              </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-white border text-gray-500">
+                                {lessonLabel}
+                              </span>
+                              <button
+                                onClick={() => {
+                                  editor.lessonForm.edit(lesson, chapter.id);
+                                  // Load quiz questions when editing a quiz lesson
+                                  if (lesson.loai === "quiz" && lesson.quizzes?.[0]) {
+                                    api.getQuiz(lesson.quizzes[0].id).then((res: any) => {
+                                      if (res?.quiz) {
+                                        // Sync quiz title and time limit into lessonForm
+                                        editor.lessonForm.setField("tieu_de", res.quiz.tieu_de || lesson.tieu_de);
+                                        editor.lessonForm.setField("thoi_luong", String(res.quiz.thoi_gian_lam || 10));
+                                        // Load quiz questions
+                                        if (res.quiz.questions) {
+                                          setQuizQuestions(res.quiz.questions.map((q: any) => {
+                                            const dapAnIndex = Array.isArray(q.lua_chon) ? q.lua_chon.indexOf(q.dap_an_dung) : -1;
+                                            return {
+                                              id: q.id,
+                                              cau_hoi: q.cau_hoi,
+                                              lua_chon: q.lua_chon,
+                                              dap_an_dung: dapAnIndex >= 0 ? dapAnIndex : 0,
+                                            };
+                                          }));
+                                        }
+                                      }
+                                    }).catch(() => setQuizQuestions([]));
+                                  } else {
+                                    setQuizQuestions([]);
+                                  }
+                                }}
+                                className="p-2 hover:bg-gray-200/50 rounded"
+                              >
+                                <Edit2 className="w-4 h-4 text-gray-600" />
+                              </button>
+                              <button
+                                onClick={() => editor.handleDeleteLesson(lesson.id, chapter.id)}
+                                className="p-2 hover:bg-red-50 rounded"
+                              >
+                                <Trash2 className="w-4 h-4 text-red-500" />
+                              </button>
                             </div>
-                          ))}
-                          <button
-                            onClick={() => editor.lessonForm.openWithChapter(chapter.id, "exercise")}
-                            className="w-full p-3 text-purple-600 hover:bg-purple-50 rounded-[8px] border-2 border-dashed border-purple-300 font-['Inter', sans-serif] text-sm flex items-center justify-center"
-                          >
-                            <Plus className="w-4 h-4 mr-1" />
-                            Thêm bài tập
-                          </button>
-                        </div>
-                      )}
+                          </div>
+                        );
+                      })}
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => editor.lessonForm.openWithChapter(chapter.id, "video")}
+                          className="flex-1 p-3 text-blue-600 hover:bg-blue-50 rounded-[8px] border-2 border-dashed border-blue-300 font-['Inter', sans-serif] text-sm flex items-center justify-center"
+                        >
+                          <Plus className="w-4 h-4 mr-1" />
+                          Thêm video
+                        </button>
+                        <button
+                          onClick={() => editor.lessonForm.openWithChapter(chapter.id, "quiz")}
+                          className="flex-1 p-3 text-purple-600 hover:bg-purple-50 rounded-[8px] border-2 border-dashed border-purple-300 font-['Inter', sans-serif] text-sm flex items-center justify-center"
+                        >
+                          <Plus className="w-4 h-4 mr-1" />
+                          Thêm quiz
+                        </button>
+                      </div>
                     </div>
                   </Card>
                 );
@@ -690,8 +746,8 @@ const TeacherCourseEditPageRedesign = () => {
         {/* Chapter Modal */}
         <Modal
           open={editor.activeModal === "chapter"}
-          onClose={editor.closeModal}
-          title="Thêm chương mới"
+          onClose={() => { editor.closeModal(); setEditingChapterId(null); }}
+          title={editingChapterId ? "Sửa chương" : "Thêm chương mới"}
         >
           <div className="space-y-4">
             <div>
@@ -704,7 +760,7 @@ const TeacherCourseEditPageRedesign = () => {
               />
             </div>
             <div className="flex gap-2 justify-end">
-              <Button variant="outline" onClick={editor.closeModal}>
+              <Button variant="outline" onClick={() => { editor.closeModal(); setEditingChapterId(null); }}>
                 Hủy
               </Button>
               <Button
@@ -717,21 +773,34 @@ const TeacherCourseEditPageRedesign = () => {
                   }
                   if (courseId && courseId > 0) {
                     try {
-                      const { chapter } = await import("../../api").then((m) =>
-                        m.createChapter(courseId, title.trim(), editor.chapters.length + 1)
-                      );
-                      if (chapter) {
-                        editor.addChapter(title.trim(), editor.chapters.length + 1);
+                      if (editingChapterId) {
+                        await api.updateChapter(editingChapterId, { tieu_de: title.trim() });
+                        // Update local state instead of reloading
+                        editor.setChapters((prev: any) =>
+                          prev.map((ch: any) =>
+                            ch.id === editingChapterId ? { ...ch, tieu_de: title.trim() } : ch
+                          )
+                        );
+                        setEditingChapterId(null);
                         editor.closeModal();
                         editor.chapterForm.reset();
+                      } else {
+                        const { chapter } = await import("../../api").then((m) =>
+                          m.createChapter(courseId, title.trim(), editor.chapters.length + 1)
+                        );
+                        if (chapter) {
+                          editor.addChapter(title.trim(), editor.chapters.length + 1);
+                          editor.closeModal();
+                          editor.chapterForm.reset();
+                        }
                       }
-                    } catch (e) {
-                      alert("Thêm chương thất bại");
+                    } catch (e: any) {
+                      alert(e?.message || "Thêm chương thất bại");
                     }
                   }
                 }}
               >
-                Lưu
+                {editingChapterId ? "Cập nhật" : "Lưu"}
               </Button>
             </div>
           </div>
@@ -740,72 +809,113 @@ const TeacherCourseEditPageRedesign = () => {
         {/* Lesson Modal */}
         <Modal
           open={editor.activeModal === "lesson"}
-          onClose={editor.closeModal}
+          onClose={() => { editor.closeModal(); setQuizQuestions([]); }}
           title={editor.editingLesson?.lesson ? "Sửa bài học" : "Thêm bài học mới"}
         >
           <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-bold mb-2">Tiêu đề</label>
-              <Input
-                value={editor.lessonForm.formData.tieu_de}
-                onChange={(value) => editor.lessonForm.setField("tieu_de", value)}
-                placeholder="VD: Bài 1 - Giới thiệu React"
-                className="border-2 border-[#1C293C]"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-bold mb-2">Loại</label>
-              <select
-                value={editor.lessonForm.formData.loai}
-                onChange={(e) => editor.lessonForm.setField("loai", e.target.value as any)}
-                className="w-full p-3 border-2 border-[#1C293C] rounded-[8px]"
-              >
-                <option value="video">Video</option>
-                <option value="exercise">Bài tập</option>
-                <option value="document">Tài liệu</option>
-                <option value="quiz">Quiz</option>
-              </select>
-            </div>
-            {editor.lessonForm.formData.loai === "video" && (
+            {/* Tiêu đề - hide when quiz because QuizBuilder has its own title */}
+            {editor.lessonForm.formData.loai !== "quiz" && (
               <div>
-                <label className="block text-sm font-bold mb-2">Video URL</label>
+                <label className="block text-sm font-bold mb-2">Tiêu đề bài học</label>
                 <Input
-                  value={editor.lessonForm.formData.video_url}
-                  onChange={(value) => editor.lessonForm.setField("video_url", value)}
-                  placeholder="https://youtube.com/..."
+                  value={editor.lessonForm.formData.tieu_de}
+                  onChange={(value) => editor.lessonForm.setField("tieu_de", value)}
+                  placeholder="VD: Bài 1 - Giới thiệu React"
                   className="border-2 border-[#1C293C]"
                 />
               </div>
             )}
-            {editor.lessonForm.formData.loai === "video" && (
-              <div>
-                <label className="block text-sm font-bold mb-2">Thời lượng</label>
-                <Input
-                  value={editor.lessonForm.formData.thoi_luong}
-                  onChange={(value) => editor.lessonForm.setField("thoi_luong", value)}
-                  placeholder="VD: 10:00"
-                  className="border-2 border-[#1C293C]"
-                />
-              </div>
-            )}
+
+            {/* Loại bài học - Type selector buttons */}
             <div>
-              <label className="block text-sm font-bold mb-2">Nội dung</label>
-              <textarea
-                value={editor.lessonForm.formData.noi_dung}
-                onChange={(e) => editor.lessonForm.setField("noi_dung", e.target.value)}
-                placeholder="Nội dung bài học..."
-                className="w-full p-3 border-2 border-[#1C293C] rounded-[8px] min-h-[150px]"
-              />
+              <label className="block text-sm font-bold mb-2">Loại bài học</label>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { value: "video", label: "Video", icon: "🎬" },
+                  { value: "quiz", label: "Quiz", icon: "📝" },
+                ].map((type) => (
+                  <button
+                    key={type.value}
+                    type="button"
+                    onClick={() => {
+                      editor.lessonForm.setField("loai", type.value as any);
+                      if (type.value !== "quiz") setQuizQuestions([]);
+                    }}
+                    className={`p-4 rounded-[8px] border-2 text-center transition-all ${
+                      editor.lessonForm.formData.loai === type.value
+                        ? type.value === "video"
+                          ? "border-blue-500 bg-blue-50 text-blue-700 shadow-[2px_2px_0px_#49B6E5]"
+                          : "border-purple-500 bg-purple-50 text-purple-700 shadow-[2px_2px_0px_#7C3AED]"
+                        : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                    }`}
+                  >
+                    <div className="text-3xl mb-1">{type.icon}</div>
+                    <div className="text-sm font-medium">{type.label}</div>
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="flex gap-2 justify-end">
-              <Button variant="outline" onClick={editor.closeModal}>
+
+            {/* Video form */}
+            {editor.lessonForm.formData.loai === "video" && (
+              <>
+                <div>
+                  <label className="block text-sm font-bold mb-2">Tải video lên</label>
+                  <VideoUpload
+                    value={editor.lessonForm.formData.video_url}
+                    onChange={(url) => editor.lessonForm.setField("video_url", url)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold mb-2">Thời lượng (phút:giây)</label>
+                  <Input
+                    value={editor.lessonForm.formData.thoi_luong}
+                    onChange={(value) => editor.lessonForm.setField("thoi_luong", value)}
+                    placeholder="VD: 10:00"
+                    className="border-2 border-[#1C293C]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold mb-2">Mô tả nội dung</label>
+                  <textarea
+                    value={editor.lessonForm.formData.noi_dung}
+                    onChange={(e) => editor.lessonForm.setField("noi_dung", e.target.value)}
+                    placeholder="Mô tả nội dung video..."
+                    className="w-full p-3 border-2 border-[#1C293C] rounded-[8px] min-h-[100px]"
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Quiz form */}
+            {editor.lessonForm.formData.loai === "quiz" && (
+              <QuizBuilder
+                formData={{
+                  tieu_de: editor.lessonForm.formData.tieu_de || "",
+                  thoi_gian_lam: editor.lessonForm.formData.thoi_luong ? parseInt(editor.lessonForm.formData.thoi_luong) || 10 : 10,
+                  so_cau_hoi: quizQuestions.length,
+                  cau_hoi: quizQuestions,
+                }}
+                onChange={(data) => {
+                  setQuizQuestions(data.cau_hoi);
+                  editor.lessonForm.setField("thoi_luong", String(data.thoi_gian_lam));
+                  editor.lessonForm.setField("tieu_de", data.tieu_de);
+                }}
+              />
+            )}
+
+
+
+            {/* Actions */}
+            <div className="flex gap-2 justify-end pt-2 border-t-2 border-gray-100">
+              <Button variant="outline" onClick={() => { editor.closeModal(); setQuizQuestions([]); }}>
                 Hủy
               </Button>
               <Button
                 variant="primary"
                 onClick={async () => {
                   const { tieu_de, loai, video_url, thoi_luong, noi_dung } = editor.lessonForm.formData;
-                  if (!tieu_de?.trim()) {
+                  if (!tieu_de?.trim() && loai !== "quiz") {
                     alert("Vui lòng nhập tiêu đề");
                     return;
                   }
@@ -814,32 +924,88 @@ const TeacherCourseEditPageRedesign = () => {
                     alert("Không có chương");
                     return;
                   }
-                  try {
-                    if (editor.editingLesson?.lesson) {
-                      await editor.updateLesson(editor.editingLesson.lesson.id, {
-                        tieu_de: tieu_de.trim(),
-                        loai,
-                        video_url,
-                        thoi_luong,
-                        noi_dung,
-                      });
+                  try {                      if (editor.editingLesson?.lesson) {
+                        await editor.updateLesson(editor.editingLesson.lesson.id, {
+                          tieu_de: tieu_de.trim(),
+                          loai,
+                          video_url,
+                          thoi_luong,
+                          noi_dung,
+                        });
+
+                        // If editing a quiz lesson, update questions (even if empty - deletes all)
+                        if (loai === "quiz" && editor.editingLesson.lesson.quizzes?.[0]) {
+                          try {
+                            await api.replaceQuizQuestions(
+                              editor.editingLesson.lesson.quizzes[0].id,
+                              quizQuestions.map((q) => ({
+                                cau_hoi: q.cau_hoi,
+                                lua_chon: q.lua_chon,
+                                dap_an_dung: q.dap_an_dung,
+                              })),
+                            );
+                          } catch (quizErr) {
+                            console.error("Failed to update quiz questions:", quizErr);
+                            alert("Cập nhật câu hỏi quiz thất bại. Vui lòng thử lại.");
+                          }
+                        }
+
+                        editor.closeModal();
+                        editor.lessonForm.reset();
+                        setQuizQuestions([]);
                     } else {
-                      await editor.addLesson(chapterId, {
-                        tieu_de: tieu_de.trim(),
+                      const lessonTitle = tieu_de.trim() || "Bài kiểm tra";
+
+                      const lesson = await editor.addLesson(chapterId, {
+                        tieu_de: lessonTitle,
                         loai,
                         video_url,
                         thoi_luong,
                         noi_dung,
                       });
+
+                      // If quiz type, create the quiz with questions
+                      if (loai === "quiz" && lesson && quizQuestions.length > 0) {
+                        try {
+                          const quizResult = await api.createLessonQuiz(lesson.id, {
+                            tieu_de: lessonTitle,
+                            thoi_gian_lam: parseInt(thoi_luong) || 10,
+                            questions: quizQuestions.map((q) => ({
+                              cau_hoi: q.cau_hoi,
+                              lua_chon: q.lua_chon,
+                              dap_an_dung: q.dap_an_dung,
+                            })),
+                          });
+                          // Update local state with quiz data so it shows immediately
+                          if (quizResult?.quiz) {
+                            editor.setChapters((prev: any) =>
+                              prev.map((ch: any) => ({
+                                ...ch,
+                                bai_hoc: (ch.bai_hoc || []).map((l: any) =>
+                                  l.id === lesson.id
+                                    ? { ...l, tieu_de: lessonTitle, quizzes: [{ id: quizResult.quiz.id, so_cau_hoi: quizResult.quiz.so_cau_hoi, thoi_gian_lam: quizResult.quiz.thoi_gian_lam }] }
+                                    : l
+                                ),
+                              }))
+                            );
+                          }
+                        } catch (quizErr) {
+                          console.error("Failed to create quiz questions:", quizErr);
+                          alert("Bài học đã tạo nhưng tạo câu hỏi quiz thất bại. Bạn có thể thêm sau.");
+                        }
+                      }
+
+                      alert("Thêm bài học thành công!");
+                      editor.closeModal();
+                      editor.lessonForm.reset();
+                      setQuizQuestions([]);
                     }
-                    editor.closeModal();
-                    editor.lessonForm.reset();
-                  } catch (e) {
-                    alert("Lưu thất bại");
+                  } catch (e: any) {
+                    alert(e?.message || "Lưu thất bại");
                   }
                 }}
               >
-                Lưu
+                {editor.editingLesson?.lesson ? "Cập nhật" : "Thêm bài học"}
               </Button>
             </div>
           </div>
