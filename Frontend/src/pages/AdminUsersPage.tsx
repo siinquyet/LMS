@@ -108,10 +108,11 @@ export const AdminUsersPage: React.FC = () => {
 	const handleDelete = async (id: number) => {
 		if (!confirm("Xóa người dùng này?")) return;
 		try {
-			await api.updateUser(id, { bi_khoa: true } as any);
+			await api.deleteUser(id);
 			fetchUsers();
 		} catch (error) {
 			console.error("Failed to delete user:", error);
+			alert("Xóa người dùng thất bại");
 		}
 	};
 

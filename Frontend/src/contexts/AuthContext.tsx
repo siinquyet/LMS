@@ -39,7 +39,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const STORAGE_KEY = "lms_auth_user";
+const STORAGE_KEY = "user";
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
 	const [user, setUser] = useState<User | null>(null);
@@ -59,9 +59,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
 	useEffect(() => {
 		const handleAuthExpired = () => {
-			setUser(null);
-			localStorage.removeItem(STORAGE_KEY);
-			window.location.href = "/login";
+			const token = localStorage.getItem("token");
+			if (token) {
+				localStorage.removeItem("token");
+				localStorage.removeItem("refreshToken");
+				localStorage.removeItem("user");
+				setUser(null);
+				window.location.href = "/login";
+			}
 		};
 		window.addEventListener("auth:expired", handleAuthExpired);
 		return () => window.removeEventListener("auth:expired", handleAuthExpired);

@@ -113,7 +113,7 @@ export const Header: React.FC = () => {
 	const navLinkClass = (path: string) =>
 		`text-[15px] font-semibold flex items-center gap-2 transition-colors ${
 			isActive(path)
-				? "text-[#FDC800] bg-[#FDC800] px-3 py-1 border-[3px] border-[#1C293C]"
+				? "text-[#FDC800]"
 				: "text-[#1C293C] hover:text-[#432DD7]"
 		}`;
 

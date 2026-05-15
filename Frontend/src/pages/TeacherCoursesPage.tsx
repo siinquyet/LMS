@@ -26,6 +26,8 @@ const STATUS_LABELS: Record<string, string> = {
 	pending: "Chờ duyệt",
 	approved: "Đã duyệt",
 	rejected: "Bị từ chối",
+	completed: "Hoàn thành",
+	published: "Đã xuất bản",
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -33,6 +35,8 @@ const STATUS_COLORS: Record<string, string> = {
 	pending: "warning",
 	approved: "success",
 	rejected: "danger",
+	completed: "success",
+	published: "success",
 };
 
 export const TeacherCoursesPage: React.FC = () => {

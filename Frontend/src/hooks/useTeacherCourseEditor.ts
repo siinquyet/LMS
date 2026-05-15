@@ -90,6 +90,7 @@ export function useTeacherCourseEditor(courseId: number, isNewCourse = false) {
 		thoi_luong: "",
 		video_url: "",
 		noi_dung: "",
+		tai_lieu: "",
 	});
 	const quizForm = useForm<QuizFormData>({
 		tieu_de: "",
@@ -185,21 +186,46 @@ export function useTeacherCourseEditor(courseId: number, isNewCourse = false) {
 		return course.saveCourse(course.course);
 	};
 
-	const handleDeleteChapter = async (chapterId: number) => {
+  const handleDeleteChapter = async (chapterId: number) => {
 		if (!confirm("Xóa chương này sẽ xóa tất cả bài học trong chương. Tiếp tục?")) return;
 		try {
-			await api.deleteChapter(chapterId);
+			const token = localStorage.getItem('token');
+			const res = await fetch(`/api/chapters/${chapterId}`, {
+				method: 'DELETE',
+				headers: {
+					Authorization: `Bearer ${token}`,
+					'Content-Type': 'application/json',
+				},
+			});
+			if (!res.ok) {
+				const err = await res.json().catch(() => ({ error: 'Lỗi không xác định' }));
+				alert(err.error || `Lỗi: ${res.status}`);
+				return;
+			}
 			setChapters((prev) => prev.filter((c) => c.id !== chapterId));
 			alert("Xóa chương thành công!");
-		} catch (e) {
-			alert("Xóa thất bại: " + (e as Error).message);
+		} catch (e: any) {
+			console.error("Xóa chương thất bại:", e);
+			alert("Xóa chương thất bại. Vui lòng thử lại.");
 		}
 	};
 
 	const handleDeleteLesson = async (lessonId: number, chapterId: number) => {
 		if (!confirm("Xóa bài học này?")) return;
 		try {
-			await api.deleteLesson(lessonId);
+			const token = localStorage.getItem('token');
+			const res = await fetch(`/api/lessons/${lessonId}`, {
+				method: 'DELETE',
+				headers: {
+					Authorization: `Bearer ${token}`,
+					'Content-Type': 'application/json',
+				},
+			});
+			if (!res.ok) {
+				const err = await res.json().catch(() => ({ error: 'Lỗi không xác định' }));
+				alert(err.error || `Lỗi: ${res.status}`);
+				return;
+			}
 			setChapters((prev) =>
 				prev.map((ch) =>
 					ch.id === chapterId
@@ -207,9 +233,10 @@ export function useTeacherCourseEditor(courseId: number, isNewCourse = false) {
 						: ch,
 				),
 			);
+			alert("Xóa bài học thành công!");
 		} catch (e: any) {
-			console.error("Xóa thất bại:", e);
-			alert(e?.message || "Xóa bài học thất bại");
+			console.error("Xóa bài học thất bại:", e);
+			alert("Xóa bài học thất bại. Vui lòng thử lại.");
 		}
 	};
 
@@ -237,11 +264,15 @@ export function useTeacherCourseEditor(courseId: number, isNewCourse = false) {
 		},
 	};
 
-return {
+	const setChaptersDirectly = (updater: (prev: Chapter[]) => Chapter[]) => {
+		setChapters(updater);
+	};
+
+ return {
 		course: course.course,
 		courseField: course.setCourseField,
 		chapters,
-		setChapters,
+		setChapters: setChaptersDirectly,
 		...chaptersHook,
 		loading: course.loading,
 		saving: course.saving,

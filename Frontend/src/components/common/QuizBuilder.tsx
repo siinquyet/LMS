@@ -123,7 +123,7 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({ formData, onChange }) 
 								<button
 									type="button"
 									onClick={() => updateQuestion(qIdx, "dap_an_dung", oIdx)}
-									className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
+									className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 ${
 										question.dap_an_dung === oIdx
 											? "bg-green-500 border-green-500 text-white"
 											: "border-gray-400 hover:border-green-500"
@@ -136,10 +136,19 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({ formData, onChange }) 
 									value={option}
 									onChange={(e) => updateOption(qIdx, oIdx, e.target.value)}
 									placeholder={`Đáp án ${oIdx + 1}`}
-									className="flex-1 p-2 border-2 border-[#1C293C] rounded-lg"
+									className={`flex-1 p-2 border-2 rounded-lg ${
+										option.trim().length === 0
+											? "border-red-400 bg-red-50"
+											: "border-[#1C293C]"
+									}`}
 								/>
 							</div>
 						))}
+						{question.lua_chon.filter(o => o.trim().length > 0).length < 2 && (
+							<p className="text-xs text-red-500 mt-1">
+								Cần ít nhất 2 đáp án không được để trống
+							</p>
+						)}
 					</div>
 
 					<p className="text-xs text-gray-500">

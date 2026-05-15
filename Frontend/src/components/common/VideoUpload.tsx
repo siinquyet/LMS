@@ -6,6 +6,7 @@ import { Video, X, Upload, FileText } from "lucide-react";
 export interface VideoUploadProps {
 	value?: string;
 	onChange: (url: string) => void;
+	onDurationChange?: (duration: string) => void;
 	thumbnail?: string;
 	onThumbnailChange?: (url: string) => void;
 	documents?: string[];
@@ -16,6 +17,7 @@ export interface VideoUploadProps {
 export const VideoUpload: React.FC<VideoUploadProps> = ({
 	value,
 	onChange,
+	onDurationChange,
 	thumbnail,
 	onThumbnailChange,
 	documents = [],
@@ -49,6 +51,25 @@ export const VideoUpload: React.FC<VideoUploadProps> = ({
 			const data = await uploadMedia(file, "lesson");
 			if (data.url) {
 				onChange(data.url);
+				
+				// Auto-extract video duration
+				const videoUrl = data.url.startsWith('http') ? data.url : `${window.location.origin}${data.url}`;
+				const video = document.createElement('video');
+				video.preload = 'metadata';
+				video.onloadedmetadata = () => {
+					const duration = video.duration;
+					const minutes = Math.floor(duration / 60);
+					const seconds = Math.floor(duration % 60);
+					const formattedDuration = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+					if (onDurationChange) {
+						onDurationChange(formattedDuration);
+					}
+					URL.revokeObjectURL(video.src);
+				};
+				video.onerror = () => {
+					URL.revokeObjectURL(video.src);
+				};
+				video.src = videoUrl;
 			}
 		} catch (err: any) {
 			console.error("Upload failed:", err);

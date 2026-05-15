@@ -194,6 +194,7 @@ model Lesson {
   type        LessonType   @default(video) @map("loai")
   duration    String?      @map("thoi_luong")
   content     String?      @map("noi_dung")
+  materials   String?      @map("tai_lieu")
   chapter     Chapter      @relation(fields: [chapterId], references: [id], onDelete: Cascade)
   quizzes     Quiz[]
   assignments Assignment[]

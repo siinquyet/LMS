@@ -17,14 +17,25 @@ const getHeaders = (includeAuth = true) => {
 
 const handleResponse = async (res: Response) => {
 	if (!res.ok) {
-		const error = await res.json().catch(() => ({ error: "Request failed" }));
+		const contentType = res.headers.get('content-type');
+		let error = { error: 'Request failed' };
+		
+		if (contentType && contentType.includes('application/json')) {
+			try {
+				const errorData = await res.json();
+				error = { error: errorData.error || errorData.message || JSON.stringify(errorData) };
+			} catch {
+				// ignore parse error
+			}
+		}
+		
 		if (res.status === 401) {
 			localStorage.removeItem("token");
 			localStorage.removeItem("refreshToken");
 			localStorage.removeItem("user");
 			window.dispatchEvent(new CustomEvent("auth:expired"));
 		}
-		throw new Error(error.error || "Request failed");
+		throw new Error(error.error);
 	}
 	return res.json();
 };
@@ -104,6 +115,14 @@ export const updateUser = async (id: number, data: Record<string, unknown>) => {
 		body: JSON.stringify(data),
 	});
 	return handleResponse(res);
+};
+
+export const deleteUser = async (id: number) => {
+	const res = await fetch(`${API_BASE}/api/users/${id}`, {
+		method: "DELETE",
+		headers: getHeaders(),
+	});
+	return res.ok ? {} : handleResponse(res);
 };
 
 export const changePassword = async (
@@ -834,12 +853,12 @@ export const refundOrder = async (orderId: number) => {
 
 // Admin
 export const getAdminOverview = async () => {
-	const res = await fetch(`${API_BASE}/api/admin/overview`);
+	const res = await fetch(`${API_BASE}/api/admin/overview`, { headers: getHeaders() });
 	return handleResponse(res);
 };
 
 export const getAnalytics = async () => {
-	const res = await fetch(`${API_BASE}/api/analytics`);
+	const res = await fetch(`${API_BASE}/api/analytics`, { headers: getHeaders() });
 	return handleResponse(res);
 };
 
@@ -1079,17 +1098,16 @@ export const updateUserProfile = async (userId: number, data: {
 
 // Media Upload
 export const uploadMedia = async (file: File, entityType: string = 'user', entityId?: number) => {
-	const formData = new FormData();
-	formData.append('file', file);
-	formData.append('entityType', entityType);
-	if (entityId) formData.append('entityId', String(entityId));
+  const formData = new FormData();
+  formData.append('file', file);
+  if (entityId) formData.append('entityId', String(entityId));
 
-	const res = await fetch(`${API_BASE}/api/media/upload`, {
-		method: 'POST',
-		headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-		body: formData,
-	});
-	return handleResponse(res);
+  const res = await fetch(`${API_BASE}/api/media/${entityType}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+    body: formData,
+  });
+  return handleResponse(res);
 };
 
 export const uploadAvatar = async (file: File) => {

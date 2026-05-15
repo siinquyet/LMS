@@ -46,6 +46,88 @@ const avatarUpload = createUploader('avatars', 5, ['image/']);
 const forumUpload = createUploader('forum', 20, ['image/', 'video/']);
 const courseUpload = createUploader('courses', 500, ['image/', 'video/', 'application/']);
 
+const getUploaderForType = (entityType: string) => {
+  switch (entityType) {
+    case 'forum_post':
+      return forumUpload.single('file');
+    case 'course':
+    case 'lesson':
+      return courseUpload.single('file');
+    case 'user':
+    default:
+      return avatarUpload.single('file');
+  }
+};
+
+const getUploadDir = (entityType: string) => {
+  switch (entityType) {
+    case 'user':
+      return 'avatars';
+    case 'forum_post':
+      return 'forum';
+    case 'course':
+    case 'lesson':
+    default:
+      return 'courses';
+  }
+};
+
+router.post('/:entityType', authenticate, async (req: any, res) => {
+  const { entityType } = req.params;
+  const upload = getUploaderForType(entityType);
+
+  upload(req, res, async (err: Error | string | undefined) => {
+    if (err) {
+      const message = typeof err === 'string' ? err : err.message;
+      res.status(400).json({ error: message });
+      return;
+    }
+
+    const file = req.file;
+    if (!file) {
+      res.status(400).json({ error: 'No file uploaded' });
+      return;
+    }
+
+    let mediaType: 'image' | 'video' | 'document' = 'image';
+    if (file.mimetype.startsWith('video/')) mediaType = 'video';
+    else if (!file.mimetype.startsWith('image/')) mediaType = 'document';
+
+    const url = `/uploads/${getUploadDir(entityType)}/${file.filename}`;
+    const userId = req.user.userId;
+
+    const entityId = parseInt(req.body.entityId) || 0;
+
+    if (entityType === 'user' && userId) {
+      const existingUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { avatarUrl: true }
+      });
+      if (existingUser?.avatarUrl) {
+        const oldFilePath = path.join(__dirname, '../../', existingUser.avatarUrl.replace('/uploads', 'uploads'));
+        if (fs.existsSync(oldFilePath)) fs.unlinkSync(oldFilePath);
+        await prisma.media.deleteMany({ where: { entityType: 'user', entityId: userId } });
+      }
+      await prisma.user.update({ where: { id: userId }, data: { avatarUrl: url } });
+    }
+
+    const media = await prisma.media.create({
+      data: {
+        type: mediaType,
+        url,
+        filename: file.originalname,
+        mimeType: file.mimetype,
+        size: file.size,
+        entityType: entityType || 'user',
+        entityId: entityId || userId,
+        uploadedBy: userId || 0,
+      }
+    });
+
+    res.json({ success: true, media, url });
+  });
+});
+
 router.post('/upload', authenticate, async (req: any, res) => {
   try {
     const { entityType } = req.body;
@@ -64,9 +146,10 @@ router.post('/upload', authenticate, async (req: any, res) => {
         upload = avatarUpload.single('file');
     }
 
-    upload(req, res, async (err: string | undefined) => {
+    upload(req, res, async (err: Error | string | undefined) => {
       if (err) {
-        res.status(400).json({ error: err });
+        const message = typeof err === 'string' ? err : err.message;
+        res.status(400).json({ error: message });
         return;
       }
 

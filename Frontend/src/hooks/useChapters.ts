@@ -11,6 +11,7 @@ export interface Lesson {
 	quizzes?: any[];
 	assignments?: any[];
 	thu_tu?: number;
+	tai_lieu?: string;
 }
 
 export interface Chapter {
@@ -30,61 +31,42 @@ export function useChapters(
 	const addChapter = useCallback(
 		async (title: string, order: number) => {
 			if (!title.trim()) {
-				alert("Vui lòng nhập tên chương");
-				return;
+				throw new Error("Vui lòng nhập tên chương");
 			}
 			if (!courseId || courseId === 0) {
-				alert("Không có khóa học");
-				return;
+				throw new Error("Không có khóa học");
 			}
 			try {
-				console.log("[DEBUG-addChapter] Calling API with:", { courseId, title, order });
 				const { chapter } = await api.createChapter(
 					courseId,
 					title.trim(),
 					order,
 				);
-				console.log("[DEBUG-addChapter] Response:", chapter);
 				if (chapter) {
 					setChapters((prev) => [...prev, { ...chapter, bai_hoc: [] }]);
 					setOpenChapters((prev) => [...prev, chapter.id]);
-					alert("Thêm chương thành công!");
+					return chapter;
 				}
+				throw new Error("Không nhận được dữ liệu từ server");
 			} catch (e: any) {
-				console.error("[DEBUG-addChapter] Error details:", {
-					message: e?.message,
-					status: e?.status,
-					response: e?.response,
-					stack: e?.stack,
-				});
 				const errorMsg = e?.response?.data?.error || e?.message || "Lỗi không xác định";
-				alert("Thêm chương thất bại: " + errorMsg);
+				throw new Error(errorMsg);
 			}
 		},
-		[courseId, setChapters],
+		[courseId, setChapters, setOpenChapters],
 	);
 
 	const deleteChapter = useCallback(
 		async (chapterId: number) => {
-			if (
-				!confirm("Xóa chương này sẽ xóa tất cả bài học trong chương. Tiếp tục?")
-			)
+			if (!window.confirm("Xóa chương này sẽ xóa tất cả bài học trong chương. Tiếp tục?"))
 				return;
 			try {
-				console.log("[DEBUG-deleteChapter] Calling API with:", { chapterId });
 				await api.deleteChapter(chapterId);
-				console.log("[DEBUG-deleteChapter] Success");
 				setChapters((prev) => prev.filter((c) => c.id !== chapterId));
 				setOpenChapters((prev) => prev.filter((id) => id !== chapterId));
-				alert("Xóa chương thành công!");
 			} catch (e: any) {
-				console.error("[DEBUG-deleteChapter] Error details:", {
-					message: e?.message,
-					status: e?.status,
-					response: e?.response,
-				});
 				const errorMsg = e?.response?.data?.error || e?.message || "Lỗi không xác định";
-				alert("Xóa chương thất bại: " + errorMsg);
+				throw new Error(errorMsg);
 			}
 		},
 		[setChapters, setOpenChapters],
@@ -131,6 +113,7 @@ export function useChapters(
 					video_url: data.video_url || "",
 					thoi_luong: data.thoi_luong || "",
 					noi_dung: data.noi_dung || "",
+					tai_lieu: data.tai_lieu || "",
 				});
 				if (lesson) {
 					setChapters((prev) =>
@@ -160,7 +143,10 @@ export function useChapters(
 	const updateLesson = useCallback(
 		async (lessonId: number, data: Partial<Lesson>) => {
 			try {
-				await api.updateLesson(lessonId, data);
+				await api.updateLesson(lessonId, {
+					...data,
+					tai_lieu: data.tai_lieu,
+				});
 				setChapters((prev) =>
 					prev.map((ch) => ({
 						...ch,
@@ -179,7 +165,7 @@ export function useChapters(
 
 	const deleteLesson = useCallback(
 		async (chapterId: number, lessonId: number) => {
-			if (!confirm("Xóa bài học này?")) return;
+			if (!window.confirm("Xóa bài học này?")) return;
 			try {
 				await api.deleteLesson(lessonId);
 				setChapters((prev) =>
@@ -192,8 +178,9 @@ export function useChapters(
 							: ch,
 					),
 				);
-			} catch (e) {
-				console.error("Xóa thất bại:", e);
+			} catch (e: any) {
+				const errorMsg = e?.response?.data?.error || e?.message || "Lỗi không xác định";
+				throw new Error(errorMsg);
 			}
 		},
 		[setChapters],

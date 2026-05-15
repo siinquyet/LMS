@@ -17,6 +17,7 @@ export interface Course {
 	chuong_hoc?: any[];
 	requirements?: string[];
 	what_you_learn?: string[];
+	tai_lieu?: string;
 }
 
 const NEW_COURSE_TEMPLATE: Course = {
@@ -30,6 +31,7 @@ const NEW_COURSE_TEMPLATE: Course = {
 	trang_thai: "draft",
 	so_luong_da_dang_ky: 0,
 	xep_hang: 0,
+	tai_lieu: "",
 };
 
 export function useCourse(courseId: number, isNewCourse = false) {
@@ -39,8 +41,6 @@ export function useCourse(courseId: number, isNewCourse = false) {
 	const [error, setError] = useState<string | null>(null);
 
 	const loadCourse = useCallback(async () => {
-		console.log("[DEBUG-loadCourse] courseId:", courseId, "isNewCourse:", isNewCourse);
-		
 		if (isNewCourse) {
 			setCourse({
 				id: 0,
@@ -53,29 +53,22 @@ export function useCourse(courseId: number, isNewCourse = false) {
 				trang_thai: "draft",
 				so_luong_da_dang_ky: 0,
 				xep_hang: 0,
+				tai_lieu: "",
 			});
 			return;
 		}
-		
+
 		if (!courseId || isNaN(courseId)) {
-			console.error("[DEBUG-loadCourse] Invalid courseId:", courseId);
 			setError("ID khóa học không hợp lệ");
 			return;
 		}
-		
+
 		setLoading(true);
 		setError(null);
 		try {
-			console.log("[DEBUG-loadCourse] Calling API with courseId:", courseId);
 			const { course: data } = await api.getTeacherCourse(courseId);
-			console.log("[DEBUG-loadCourse] API response:", data);
 			setCourse(data);
 		} catch (e: any) {
-			console.error("[DEBUG-loadCourse] Error:", {
-				message: e?.message,
-				status: e?.status,
-				response: e?.response,
-			});
 			setError((e as Error).message || "Không tải được khóa học");
 		} finally {
 			setLoading(false);

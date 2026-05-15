@@ -27,6 +27,7 @@ const prisma = new PrismaClient();
 const toDate = (value: string | undefined) => (value ? new Date(value) : undefined);
 
 async function main() {
+  await prisma.media.deleteMany();
   await prisma.auditLog.deleteMany();
   await prisma.userPermission.deleteMany();
   await prisma.rolePermission.deleteMany();

@@ -53,12 +53,12 @@ export const QuizDoPage: React.FC = () => {
 
 	if (loading) return <Loader />;
 
-	if (error) {
+	if (error || questions.length === 0) {
 		return (
 			<div className="min-h-screen bg-[#F8F6F3] p-4 flex items-center justify-center">
 				<Card className="p-8 text-center max-w-md">
 					<AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-					<p className="font-['Inter', sans-serif] text-red-500 mb-4">{error}</p>
+					<p className="font-['Inter', sans-serif] text-red-500 mb-4">{error || "Không tìm thấy câu hỏi"}</p>
 					<Link to={`/learn/${courseId}/${lessonId}`}>
 						<Button variant="primary">Quay lại bài học</Button>
 					</Link>
@@ -68,6 +68,17 @@ export const QuizDoPage: React.FC = () => {
 	}
 
 	const currentQ = questions[currentQuestion];
+	if (!currentQ) {
+		return (
+			<div className="min-h-screen bg-[#F8F6F3] p-4 flex items-center justify-center">
+				<Card className="p-8 text-center max-w-md">
+					<AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+					<p className="font-['Inter', sans-serif] text-red-500 mb-4">Câu hỏi không tìm thấy</p>
+					<Button variant="primary" onClick={() => setCurrentQuestion(0)}>Quay lại câu 1</Button>
+				</Card>
+			</div>
+		);
+	}
 	const progress = questions.length > 0 ? ((currentQuestion + 1) / questions.length) * 100 : 0;
 
 	const handleSelectAnswer = (optionText: string) => {

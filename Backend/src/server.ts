@@ -31,6 +31,8 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
+let platformCommissionRate = 0.3;
+
 const parseId = (value: string) => {
   const id = Number(value);
   return Number.isInteger(id) && id > 0 ? id : null;
@@ -402,18 +404,7 @@ app.post('/api/auth/register', authRateLimiter, async (req, res) => {
         lastName,
         joinedAt: new Date(),
         role: data.role || 'hoc_vien',
-      },
-    });
-
-    const { generateToken } = await import('./utils/permissions.js');
-    const verificationToken = generateToken();
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-
-    await prisma.emailVerificationToken.create({
-      data: {
-        userId: user.id,
-        token: verificationToken,
-        expiresAt,
+        isEmailVerified: true,
       },
     });
 
@@ -424,7 +415,6 @@ app.post('/api/auth/register', authRateLimiter, async (req, res) => {
       user: serializeUser(user),
       accessToken,
       refreshToken,
-      verificationToken,
     });
   } catch (error) {
     if (error instanceof ZodError) {
@@ -443,6 +433,36 @@ app.get('/api/users', authenticate, requireRole('admin'), async (_req, res) => {
     });
 
     res.json({ users: users.map(serializeUser) });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.delete('/api/users/:id', authenticate, requireRole('admin'), async (req, res) => {
+  try {
+    const userId = parseId(req.params.id);
+
+    if (!userId) {
+      res.status(400).json({ error: 'Invalid user id' });
+      return;
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    if (user.role === 'admin') {
+      res.status(403).json({ error: 'Cannot delete admin users' });
+      return;
+    }
+
+    await prisma.user.delete({ where: { id: userId } });
+
+    res.status(204).send();
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Internal server error' });
@@ -655,8 +675,10 @@ app.get('/api/courses', async (req, res) => {
 
     const userId = req.headers['x-user-id'] ? Number(req.headers['x-user-id']) : undefined;
 
+    const statusFilter = typeof req.query.status === 'string' ? req.query.status : undefined;
+
     const where: any = {
-      status: 'approved',      ...(categoryId ? { categoryId } : {}),
+      ...(statusFilter ? { status: statusFilter } : { status: { in: ['approved', 'published', 'completed'] } }),      ...(categoryId ? { categoryId } : {}),
       ...(instructorId ? { instructorId } : {}),
       ...(search
         ? {
@@ -750,6 +772,9 @@ app.get('/api/teacher/courses', authenticate, async (req, res) => {
             lessons: { select: { id: true } },
           },
         },
+        _count: {
+          select: { enrollments: true },
+        },
       },
       orderBy: { id: 'desc' },
     });
@@ -759,6 +784,7 @@ app.get('/api/teacher/courses', authenticate, async (req, res) => {
         ...serializeCourse(course),
         so_chuong: course.chapters.length,
         tong_bai_hoc: course.chapters.reduce((sum, ch) => sum + ch.lessons.length, 0),
+        so_luong_da_dang_ky: course._count.enrollments,
       })),
     });
   } catch (error) {
@@ -820,6 +846,7 @@ app.get('/api/teacher/courses/:id', authenticate, async (req, res) => {
             loai: lesson.type,
             thoi_luong: lesson.duration,
             noi_dung: lesson.content,
+            tai_lieu: lesson.materials || "",
             quizzes: lesson.quizzes.map((quiz) => ({
               id: quiz.id,
               tieu_de: quiz.title,
@@ -916,6 +943,7 @@ app.get('/api/courses/:id', async (req, res) => {
             loai: lesson.type,
             thoi_luong: lesson.duration,
             noi_dung: lesson.content,
+            tai_lieu: lesson.materials || "",
             quizzes: lesson.quizzes.map((quiz) => ({
               id: quiz.id,
               tieu_de: quiz.title,
@@ -981,6 +1009,7 @@ app.get('/api/lessons/:id', async (req, res) => {
         loai: lesson.type,
         thoi_luong: lesson.duration,
         noi_dung: lesson.content,
+        tai_lieu: lesson.materials || "",
         khoa_hoc: lesson.chapter.course,
         quizzes: lesson.quizzes,
         assignments: lesson.assignments,
@@ -1030,13 +1059,28 @@ app.post('/api/lessons/:lessonId/quiz', authenticate, async (req, res) => {
     });
 
     if (Array.isArray(questions) && questions.length > 0) {
+      // Validate: each question must have at least 2 non-empty options
+      for (const q of questions) {
+        const validOptions = (q.lua_chon || []).filter((o: string) => o?.trim().length > 0);
+        if (validOptions.length < 2) {
+          res.status(400).json({ error: 'Mỗi câu hỏi phải có ít nhất 2 đáp án không được để trống' });
+          return;
+        }
+      }
+
       await prisma.quizQuestion.createMany({
-        data: questions.map((q) => ({
+        data: questions.map((q) => {
+        const validOptions = q.lua_chon.filter((o: string) => o.trim().length > 0);
+        const correctIdx = typeof q.dap_an_dung === 'number' && q.dap_an_dung >= 0 && q.dap_an_dung < q.lua_chon.length ? q.dap_an_dung : 0;
+        const idxInValid = validOptions.indexOf(q.lua_chon[correctIdx]?.trim());
+        const correctAnswer = idxInValid >= 0 ? validOptions[idxInValid].trim() : validOptions[0].trim();
+        return {
           quizId: quiz.id,
-          question: q.cau_hoi,
-          options: q.lua_chon,
-          correctAnswer: q.lua_chon[q.dap_an_dung] || q.lua_chon[0],
-        })),
+          question: q.cau_hoi.trim(),
+          options: validOptions,
+          correctAnswer,
+        };
+      }),
       });
     }
 
@@ -1432,20 +1476,21 @@ app.delete('/api/chapters/:id', authenticate, async (req, res) => {
     }
 
     if (chapter.course.instructorId !== req.user!.userId) {
-      res.status(403).json({ error: 'Forbidden' });
-      return;
-    }
-
-    await prisma.chapter.delete({ where: { id: chapterId } });
-    res.status(204).send();
-  } catch (error) {
-    handleError(res, error);
+res.status(403).json({ error: 'Forbidden' });
+    return;
   }
+
+  await prisma.chapter.delete({ where: { id: chapterId } });
+  res.status(204).send();
+} catch (error) {
+  console.error('Delete chapter failed:', error);
+  res.status(500).json({ error: 'Xóa chương thất bại: ' + (error instanceof Error ? error.message : 'Unknown error') });
+}
 });
 
 app.post('/api/chapters/:id/lessons', authenticate, async (req, res) => {
   const chapterId = parseId(req.params.id);
-  const { tieu_de, video_url, loai, thoi_luong, noi_dung } = req.body as Record<string, unknown>;
+  const { tieu_de, video_url, loai, thoi_luong, noi_dung, tai_lieu } = req.body as Record<string, unknown>;
   const title = typeof tieu_de === 'string' ? tieu_de.trim() : '';
   const type = lessonTypes.find((value) => value === loai) ?? 'video';
 
@@ -1466,7 +1511,7 @@ app.post('/api/chapters/:id/lessons', authenticate, async (req, res) => {
         type,
         duration: typeof thoi_luong === 'string' ? thoi_luong : null,
         content: typeof noi_dung === 'string' ? noi_dung : null,
-        
+        materials: typeof tai_lieu === 'string' ? tai_lieu : null,
       },
     });
 
@@ -1480,6 +1525,7 @@ app.post('/api/chapters/:id/lessons', authenticate, async (req, res) => {
         loai: lesson.type,
         thoi_luong: lesson.duration,
         noi_dung: lesson.content,
+        tai_lieu: lesson.materials || "",
       },
     });
   } catch (error) {
@@ -1490,7 +1536,7 @@ app.post('/api/chapters/:id/lessons', authenticate, async (req, res) => {
 
 app.patch('/api/lessons/:id', authenticate, async (req, res) => {
   const lessonId = parseId(req.params.id);
-  const { tieu_de, video_url, loai, thoi_luong, noi_dung } = req.body as Record<string, unknown>;
+  const { tieu_de, video_url, loai, thoi_luong, noi_dung, tai_lieu } = req.body as Record<string, unknown>;
 
   if (!lessonId) {
     res.status(400).json({ error: 'Invalid lesson id' });
@@ -1522,6 +1568,7 @@ app.patch('/api/lessons/:id', authenticate, async (req, res) => {
         type: lessonTypes.find((value) => value === loai) ?? undefined,
         duration: typeof thoi_luong === 'string' ? thoi_luong : undefined,
         content: typeof noi_dung === 'string' ? noi_dung : undefined,
+        materials: typeof tai_lieu === 'string' ? tai_lieu : undefined,
         order: typeof req.body.thu_tu === 'number' ? req.body.thu_tu : undefined,
       },
     });
@@ -1536,6 +1583,7 @@ app.patch('/api/lessons/:id', authenticate, async (req, res) => {
         loai: updated.type,
         thoi_luong: updated.duration,
         noi_dung: updated.content,
+        tai_lieu: updated.materials || "",
       },
     });
   } catch (error) {
@@ -1568,10 +1616,14 @@ app.delete('/api/lessons/:id', authenticate, async (req, res) => {
       return;
     }
 
+    // Delete progress records first (only table missing cascade delete)
+    // Quiz, QuizAttempt, Assignment, AssignmentSubmission all have onDelete: Cascade
+    await prisma.progress.deleteMany({ where: { lessonId } });
     await prisma.lesson.delete({ where: { id: lessonId } });
     res.status(204).send();
   } catch (error) {
-    handleError(res, error);
+    console.error('Delete lesson failed:', error);
+    res.status(500).json({ error: 'Xóa bài học thất bại: ' + (error instanceof Error ? error.message : 'Unknown error') });
   }
 });
 
@@ -2563,7 +2615,11 @@ app.post('/api/quizzes/:id/attempts', authenticate, async (req, res) => {
     }
 
     const answerMap = new Map(answers.map((answer) => [answer.questionId, answer.answer]));
-    const correctCount = questions.filter((question) => answerMap.get(question.id) === question.correctAnswer).length;
+    const correctCount = questions.filter((question) => {
+      // Prevent auto-correct: if correctAnswer is empty/whitespace, never mark as correct
+      if (!question.correctAnswer || !question.correctAnswer.trim()) return false;
+      return answerMap.get(question.id) === question.correctAnswer;
+    }).length;
     const score = Number(((correctCount / questions.length) * 10).toFixed(2));
 
     const attempt = await prisma.quizAttempt.create({
@@ -2640,7 +2696,7 @@ app.get('/api/quizzes/attempts/:attemptId/review', async (req, res) => {
         lua_chon: q.options,
         dap_an_dung: q.correctAnswer,
         cau_tra_loi_cua_toi: answerMap.get(q.id) || null,
-        dung_sai: answerMap.get(q.id) === q.correctAnswer,
+        dung_sai: q.correctAnswer && q.correctAnswer.trim() ? answerMap.get(q.id) === q.correctAnswer : false,
       })),
     });
   } catch (error) {
@@ -3265,6 +3321,24 @@ app.get('/api/admin/overview', authenticate, async (_req, res) => {
   }
 });
 
+app.get('/api/admin/commission', authenticate, async (_req, res) => {
+  res.json({ ty_le_hoa_hong: platformCommissionRate });
+});
+
+app.put('/api/admin/commission', authenticate, requireRole('admin'), async (req, res) => {
+  try {
+    const { ty_le_hoa_hong } = req.body as { ty_le_hoa_hong?: number };
+    if (typeof ty_le_hoa_hong !== 'number' || ty_le_hoa_hong < 0 || ty_le_hoa_hong > 1) {
+      res.status(400).json({ error: 'Invalid commission rate (0-1)' });
+      return;
+    }
+    platformCommissionRate = ty_le_hoa_hong;
+    res.json({ ty_le_hoa_hong: platformCommissionRate });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
 app.patch('/api/courses/:id/status', authenticate, async (req, res) => {
   const courseId = parseId(req.params.id);
   const { trang_thai, ly_do } = req.body as { trang_thai?: string; ly_do?: string };
@@ -3610,14 +3684,13 @@ app.get('/api/instructors/:id/analytics', async (req, res) => {
       select: {
         id: true,
         title: true,
-        enrolledCount: true,
         price: true,
       },
     });
 
     const courseIds = courses.map((c) => c.id);
 
-const [orders, recentEnrollments] = await Promise.all([
+    const [orders, recentEnrollments, totalStudents, enrollmentCounts] = await Promise.all([
       prisma.order.findMany({
         where: {
           status: 'success',
@@ -3634,22 +3707,33 @@ const [orders, recentEnrollments] = await Promise.all([
         orderBy: { enrolledAt: 'desc' },
         take: 10,
       }),
+      prisma.enrollment.count({
+        where: { course: { instructorId } },
+      }),
+      prisma.enrollment.groupBy({
+        by: ['courseId'],
+        where: { courseId: { in: courseIds } },
+        _count: true,
+      }),
     ]);
 
     const revenue = orders.reduce((sum, o) => sum + o.totalAmount, 0);
-    const totalStudents = courses.reduce((sum, c) => sum + c.enrolledCount, 0);
+    const enrollmentMap = Object.fromEntries(enrollmentCounts.map(e => [e.courseId, e._count]));
 
     res.json({
       tong_doanh_thu: revenue,
       tong_hoc_vien: totalStudents,
       so_khoa_hoc: courses.length,
-      khoa_hoc: courses.map((c) => ({
-        id: c.id,
-        tieu_de: c.title,
-        so_luong_da_dang_ky: c.enrolledCount,
-        gia: c.price,
-        doanh_thu: c.enrolledCount * c.price,
-      })),
+      khoa_hoc: courses.map((c) => {
+        const actualCount = enrollmentMap[c.id] || 0;
+        return {
+          id: c.id,
+          tieu_de: c.title,
+          so_luong_da_dang_ky: actualCount,
+          gia: c.price,
+          doanh_thu: actualCount * c.price,
+        };
+      }),
       dang_ky_gan_day: recentEnrollments.map((e) => ({
         ho_ten: `${e.user.firstName} ${e.user.lastName}`.trim(),
         khoa_hoc: e.course.title,
@@ -3951,6 +4035,213 @@ app.patch('/api/quizzes/:id/attempts/:attemptId/grade', async (req, res) => {
         },
       },
     });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+// Teacher Earnings
+app.get('/api/teacher/earnings', authenticate, requireRole('giang_vien'), async (req, res) => {
+  try {
+    const userId = (req as any).user.userId;
+    console.log('[teacher/earnings] userId:', userId);
+
+    const courses = await prisma.course.findMany({
+      where: { instructorId: userId },
+      select: { id: true, price: true },
+    });
+    const courseIds = courses.map(c => c.id);
+    console.log('[teacher/earnings] courseIds:', courseIds);
+
+    if (courseIds.length === 0) {
+      res.json({
+        tong_thu_nhap: 0,
+        so_du_kha_dung: 0,
+        so_du_cho_xu_ly: 0,
+        lich_su_thu_nhap: [],
+        lich_su_rut_tien: [],
+      });
+      return;
+    }
+
+    const [totalRevenue, pendingPayouts, payoutRequests] = await Promise.all([
+      prisma.order.aggregate({
+        where: { status: 'success', items: { some: { courseId: { in: courseIds } } } },
+        _sum: { totalAmount: true },
+      }),
+      prisma.payoutRequest.aggregate({
+        where: { teacherId: userId, status: 'pending' },
+        _sum: { amount: true },
+      }),
+      prisma.payoutRequest.findMany({
+        where: { teacherId: userId },
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+      }),
+    ]);
+
+    const earnings = await prisma.earnings.findMany({
+      where: { teacherId: userId },
+      include: { course: { select: { title: true } } },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    }).catch(() => []);
+
+    const tongDoanhThu = totalRevenue._sum.totalAmount || 0;
+    const soDuChoXuLy = pendingPayouts._sum.amount || 0;
+    const soDuKhaDung = tongDoanhThu - soDuChoXuLy;
+
+    res.json({
+      tong_thu_nhap: tongDoanhThu,
+      so_du_kha_dung: soDuKhaDung,
+      so_du_cho_xu_ly: soDuChoXuLy,
+      lich_su_thu_nhap: earnings.map(e => ({
+        id: e.id,
+        khoa_hoc: e.course?.title || 'Unknown',
+        don_hang_id: e.orderId,
+        so_tien_thuc_nhan: e.netAmount,
+        ngay_dat: e.createdAt.toISOString(),
+        trang_thai: e.status,
+      })),
+      lich_su_rut_tien: payoutRequests.map(p => ({
+        id: p.id,
+        so_tien: p.amount,
+        ten_ngan_hang: p.bankName,
+        so_tai_khoan: p.bankAccount,
+        ngay_tao: p.createdAt.toISOString(),
+        trang_thai: p.status,
+      })),
+    });
+  } catch (error) {
+    console.error('[teacher/earnings] Error:', error);
+    handleError(res, error);
+  }
+});
+
+app.get('/api/teacher/earnings/history', authenticate, requireRole('giang_vien'), async (req, res) => {
+  try {
+    const userId = (req as any).user.userId;
+    const earnings = await prisma.earnings.findMany({
+      where: { teacherId: userId },
+      include: { course: { select: { title: true } } },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    }).catch(() => []);
+    res.json({
+      lich_su_thu_nhap: earnings.map(e => ({
+        id: e.id,
+        khoa_hoc: e.course?.title || 'Unknown',
+        don_hang_id: e.orderId,
+        so_tien_thuc_nhan: e.netAmount,
+        ngay_dat: e.createdAt.toISOString(),
+        trang_thai: e.status,
+      })),
+    });
+  } catch (error) {
+    console.error('[teacher/earnings/history] Error:', error);
+    handleError(res, error);
+  }
+});
+
+// Teacher Payout Requests
+app.get('/api/teacher/payout-requests', authenticate, requireRole('giang_vien'), async (req, res) => {
+  try {
+    const userId = (req as any).user.userId;
+    const requests = await prisma.payoutRequest.findMany({
+      where: { teacherId: userId },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json({
+      lich_su_rut_tien: requests.map(p => ({
+        id: p.id,
+        so_tien: p.amount,
+        ten_ngan_hang: p.bankName,
+        so_tai_khoan: p.bankAccount,
+        ngay_tao: p.createdAt.toISOString(),
+        trang_thai: p.status,
+      })),
+    });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.post('/api/teacher/payout-request', authenticate, requireRole('giang_vien'), async (req, res) => {
+  try {
+    const userId = (req as any).user.userId;
+    const { so_tien, ten_ngan_hang, so_tai_khoan } = req.body;
+
+    if (!so_tien || so_tien <= 0) {
+      res.status(400).json({ error: 'Số tiền không hợp lệ' });
+      return;
+    }
+
+    const courses = await prisma.course.findMany({
+      where: { instructorId: userId },
+      select: { id: true },
+    });
+    const courseIds = courses.map(c => c.id);
+
+    let availableBalance = 0;
+    if (courseIds.length > 0) {
+      const [totalRevenue, totalPayouts] = await Promise.all([
+        prisma.order.aggregate({
+          where: { status: 'success', items: { some: { courseId: { in: courseIds } } } },
+          _sum: { totalAmount: true },
+        }),
+        prisma.payoutRequest.aggregate({
+          where: { teacherId: userId, status: { in: ['pending', 'approved'] } },
+          _sum: { amount: true },
+        }),
+      ]);
+      availableBalance = (totalRevenue._sum.totalAmount || 0) - (totalPayouts._sum.amount || 0);
+    }
+
+    if (so_tien > availableBalance) {
+      res.status(400).json({ error: 'Số dư không đủ' });
+      return;
+    }
+
+    const payoutRequest = await prisma.payoutRequest.create({
+      data: {
+        teacherId: userId,
+        amount: so_tien,
+        bankName: ten_ngan_hang,
+        bankAccount: so_tai_khoan,
+        status: 'pending',
+      },
+    });
+
+    res.json(payoutRequest);
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+// Admin Payout Requests
+app.get('/api/admin/payout-requests', authenticate, requireRole('admin'), async (req, res) => {
+  try {
+    const requests = await prisma.payoutRequest.findMany({
+      include: { user: { select: { id: true, email: true, firstName: true, lastName: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json({ requests });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.patch('/api/admin/payout-requests/:id', authenticate, requireRole('admin'), async (req, res) => {
+  try {
+    const id = parseId(req.params.id);
+    const { status } = req.body;
+
+    const payoutRequest = await prisma.payoutRequest.update({
+      where: { id },
+      data: { status },
+    });
+
+    res.json(payoutRequest);
   } catch (error) {
     handleError(res, error);
   }

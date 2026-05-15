@@ -15,6 +15,9 @@ import {
   ArrowRight,
   Send,
   Loader,
+  AlertTriangle,
+  Zap,
+  AlertCircle,
 } from "lucide-react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import {
@@ -72,6 +75,7 @@ const LearningPageRedesign = () => {
   
   // Quiz scores
   const [quizScores, setQuizScores] = useState<Map<number, { diem: number; trang_thai: string; lan_lam_cuoi_id: number | null }>>(new Map());
+  const [showQuizConfirm, setShowQuizConfirm] = useState<{ lessonId: number; title: string; questionCount: number } | null>(null);
   
   // Notes feature
   const [notes, setNotes] = useState<Array<{id: number; timestamp: number; content: string; createdAt: string}>>([]);
@@ -412,9 +416,21 @@ const LearningPageRedesign = () => {
                         const isCurrent = lesson.id === Number(lessonId);
                         const quizScore = quizScores.get(lesson.id);
                         return (
-                          <Link
+                          <button
                             key={lesson.id}
-                            to={lesson.loai === 'quiz' ? `/quiz/${courseId}/${lesson.id}/do` : `/learn/${courseId}/${lesson.id}`}
+                            onClick={(e) => {
+                              if (lesson.loai === 'quiz') {
+                                e.preventDefault();
+                                const questionCount = realLesson.quizzes?.[0]?.so_cau_hoi || 1;
+                                setShowQuizConfirm({
+                                  lessonId: lesson.id,
+                                  title: lesson.tieu_de,
+                                  questionCount,
+                                });
+                              } else {
+                                navigate(`/learn/${courseId}/${lesson.id}`);
+                              }
+                            }}
                             className={`w-full p-3 flex items-center gap-3 rounded-[8px] text-left transition-colors ${
                               isCurrent
                                 ? "bg-[#49B6E5]/10 border-2 border-[#49B6E5]"
@@ -446,7 +462,7 @@ const LearningPageRedesign = () => {
                                 )}
                               </div>
                             </div>
-                          </Link>
+                          </button>
                         );
                       })}
                     </div>
@@ -516,11 +532,13 @@ const LearningPageRedesign = () => {
                             if (qs) {
                               return (
                                 <div className="flex items-center justify-center gap-3">
-                                  <Link to={`/quiz/${courseId}/${realLesson.id}/do`}>
-                                    <Button variant="primary" size="lg">
-                                      Làm lại
-                                    </Button>
-                                  </Link>
+                                  <Button variant="primary" size="lg" onClick={() => setShowQuizConfirm({
+                                    lessonId: realLesson.id,
+                                    title: realLesson.tieu_de,
+                                    questionCount: qs.diem >= 0 ? (realLesson.quizzes?.[0]?.so_cau_hoi || 1) : 1,
+                                  })}>
+                                    Làm lại
+                                  </Button>
                                   {qs.lan_lam_cuoi_id && (
                                     <Link to={`/quiz/${courseId}/${realLesson.id}/review?attemptId=${qs.lan_lam_cuoi_id}`}>
                                       <Button variant="outline" size="lg">
@@ -532,11 +550,13 @@ const LearningPageRedesign = () => {
                               );
                             }
                             return (
-                              <Link to={`/quiz/${courseId}/${realLesson.id}/do`}>
-                                <Button variant="primary" size="lg">
-                                  Làm bài quiz
-                                </Button>
-                              </Link>
+                              <Button variant="primary" size="lg" onClick={() => setShowQuizConfirm({
+                                lessonId: realLesson.id,
+                                title: realLesson.tieu_de,
+                                questionCount: realLesson.quizzes?.[0]?.so_cau_hoi || 1,
+                              })}>
+                                Làm bài quiz
+                              </Button>
                             );
                           })()}
                         </div>
@@ -819,6 +839,69 @@ const LearningPageRedesign = () => {
           </div>
         </div>
       </div>
+
+      {/* Quiz Confirmation Modal */}
+      {showQuizConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowQuizConfirm(null)}>
+          <div
+            className="bg-white rounded-[12px] border-3 border-[#1C293C] shadow-[6px_6px_0px_#E5E1DC] p-8 max-w-md w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-yellow-100 flex items-center justify-center">
+                <HelpCircle className="w-8 h-8 text-yellow-500" />
+              </div>
+              <h3 className="font-['Inter', sans-serif] text-xl font-bold text-[#1C293C] mb-2">
+                Làm bài kiểm tra
+              </h3>
+              <p className="font-['Inter', sans-serif] text-gray-500">
+                Bạn sắp bắt đầu làm bài quiz "{showQuizConfirm.title}"
+              </p>
+            </div>
+
+            <div className="space-y-3 mb-6">
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-[8px] border-2 border-gray-200">
+                <span className="font-['Inter', sans-serif] text-sm text-gray-600">Số câu hỏi</span>
+                <span className="font-['Inter', sans-serif] font-bold text-[#1C293C]">{showQuizConfirm.questionCount} câu</span>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-[8px] border-2 border-gray-200">
+                <span className="font-['Inter', sans-serif] text-sm text-gray-600">Điểm tối đa</span>
+                <span className="font-['Inter', sans-serif] font-bold text-[#1C293C]">10 điểm</span>
+              </div>
+              <div className="p-3 bg-amber-50 rounded-[8px] border-2 border-amber-200">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+                  <p className="font-['Inter', sans-serif] text-xs text-amber-700">
+                    Bài kiểm tra sẽ được chấm điểm ngay sau khi bạn nộp bài. Bạn có thể làm lại nhiều lần để cải thiện điểm số.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setShowQuizConfirm(null)}
+              >
+                Hủy
+              </Button>
+              <Button
+                variant="primary"
+                className="flex-1"
+                onClick={() => {
+                  const lessonId = showQuizConfirm.lessonId;
+                  setShowQuizConfirm(null);
+                  navigate(`/quiz/${courseId}/${lessonId}/do`);
+                }}
+              >
+                <Zap className="w-4 h-4 mr-2" />
+                Bắt đầu
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

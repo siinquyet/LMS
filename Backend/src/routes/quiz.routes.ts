@@ -78,19 +78,31 @@ router.put('/:id/questions', authenticate, asyncHandler(async (req, res, next) =
   if (!quizId) { next(new AppError('Invalid quiz id', 400)); return; }
 
   try {
+    // Validate: each question must have at least 2 non-empty options
+    const qs = Array.isArray(questions) ? questions : [];
+    for (const q of qs) {
+      const validOptions = (q.lua_chon || []).filter((o: string) => o?.trim().length > 0);
+      if (validOptions.length < 2) {
+        res.status(400).json({ error: 'Mỗi câu hỏi phải có ít nhất 2 đáp án không được để trống' });
+        return;
+      }
+    }
+
     // Delete all existing questions
     await prisma.quizQuestion.deleteMany({ where: { quizId } });
 
     // Create new questions
-    const qs = Array.isArray(questions) ? questions : [];
     if (qs.length > 0) {
       await prisma.quizQuestion.createMany({
-        data: qs.map((q) => ({
-          quizId,
-          question: q.cau_hoi.trim(),
-          options: q.lua_chon,
-          correctAnswer: q.lua_chon[q.dap_an_dung] || q.lua_chon[0],
-        })),
+        data: qs.map((q) => {
+          const validOptions = q.lua_chon.filter((o: string) => o.trim().length > 0);
+          return {
+            quizId,
+            question: q.cau_hoi.trim(),
+            options: validOptions,
+            correctAnswer: validOptions[Math.min(q.dap_an_dung, validOptions.length - 1)] || validOptions[0],
+          };
+        }),
       });
     }
 
